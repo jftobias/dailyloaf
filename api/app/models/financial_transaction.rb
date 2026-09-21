@@ -23,7 +23,9 @@ class FinancialTransaction < ApplicationRecord
   validate :category_matches_account_visibility
   validate :account_matches_household
   validate :posted_records_are_immutable, on: :update
+  validate :transfer_leg_is_immutable, on: :update
   before_destroy :prevent_posted_destroy
+  before_destroy :prevent_transfer_leg_destroy
 
   scope :posted_in, ->(from, to) { where(status: :posted, occurred_on: from..to) }
 
@@ -67,7 +69,15 @@ class FinancialTransaction < ApplicationRecord
     errors.add(:base, "posted transactions are immutable; use a correction") if status_in_database == "posted" && changed?
   end
 
+  def transfer_leg_is_immutable
+    errors.add(:transfer, "legs are managed through the transfer aggregate") if transfer_id.present? && changed?
+  end
+
   def prevent_posted_destroy
     throw(:abort) if posted?
+  end
+
+  def prevent_transfer_leg_destroy
+    throw(:abort) if transfer_id.present?
   end
 end

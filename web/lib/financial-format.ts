@@ -7,7 +7,7 @@ export function formatMoney(value: string, currency = "COP", intlLocale = "en-US
   try {
     const amount = Number(value);
     if (!Number.isFinite(amount)) return `${value} ${currency}`;
-    return new Intl.NumberFormat(intlLocale, { style: "currency", currency, maximumFractionDigits: 4 }).format(amount);
+    return new Intl.NumberFormat(intlLocale, { style: "currency", currency }).format(amount);
   } catch {
     return `${value} ${currency}`;
   }

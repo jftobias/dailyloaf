@@ -11,6 +11,7 @@ class Account < ApplicationRecord
   has_many :financial_transactions, dependent: :restrict_with_exception
   has_many :source_transfers, class_name: "Transfer", foreign_key: :source_account_id, dependent: :restrict_with_exception
   has_many :destination_transfers, class_name: "Transfer", foreign_key: :destination_account_id, dependent: :restrict_with_exception
+  has_one :debt_profile, dependent: :destroy
 
   normalizes :currency_code, with: ->(code) { code.to_s.strip.upcase }
 

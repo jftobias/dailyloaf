@@ -27,6 +27,7 @@ class FinancialTransactionService
   end
 
   def self.update_pending!(transaction:, user:, attributes:)
+    ensure_not_transfer_leg!(transaction)
     ApplicationRecord.transaction do
       raise ActiveRecord::RecordInvalid.new(transaction), "Only pending transactions can be edited" unless transaction.pending?
       account = visible_account!(transaction.household, user, attributes[:account_id] || transaction.account_id)
@@ -38,6 +39,7 @@ class FinancialTransactionService
   end
 
   def self.post!(transaction)
+    ensure_not_transfer_leg!(transaction)
     transaction.account.with_lock do
       raise ActiveRecord::RecordInvalid.new(transaction), "Only pending transactions can be posted" unless transaction.pending?
       transaction.update!(status: :posted)
@@ -46,6 +48,7 @@ class FinancialTransactionService
   end
 
   def self.correct!(transaction:, user:, attributes:)
+    ensure_not_transfer_leg!(transaction)
     ApplicationRecord.transaction do
       transaction.account.with_lock do
         raise ActiveRecord::RecordInvalid.new(transaction), "Only posted transactions can be corrected" unless transaction.posted?
@@ -68,6 +71,7 @@ class FinancialTransactionService
   end
 
   def self.reverse!(transaction:)
+    ensure_not_transfer_leg!(transaction)
     ApplicationRecord.transaction do
       transaction.account.with_lock do
         raise ActiveRecord::RecordInvalid.new(transaction), "Only posted transactions can be reversed" unless transaction.posted?
@@ -86,6 +90,17 @@ class FinancialTransactionService
       end
     end
   end
+
+  def self.destroy_pending!(transaction:)
+    ensure_not_transfer_leg!(transaction)
+    raise ActiveRecord::RecordInvalid.new(transaction), "Only pending transactions can be deleted" unless transaction.pending?
+    transaction.destroy!
+  end
+
+  def self.ensure_not_transfer_leg!(transaction)
+    raise TransferLegMutationError if transaction.transfer_id.present?
+  end
+  private_class_method :ensure_not_transfer_leg!
 
   def self.visible_account!(household, user, id)
     household.accounts.where(visibility: :shared).or(household.accounts.where(visibility: :private, private_owner_id: user.id)).find(id)

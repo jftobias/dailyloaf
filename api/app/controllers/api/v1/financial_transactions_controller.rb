@@ -41,7 +41,7 @@ module Api
       def destroy
         transaction = visible_transaction
         if transaction.pending?
-          transaction.destroy!
+          FinancialTransactionService.destroy_pending!(transaction: transaction)
           head :no_content
         else
           reversal = FinancialTransactionService.reverse!(transaction: transaction)

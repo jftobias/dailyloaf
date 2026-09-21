@@ -7,6 +7,7 @@ class ApplicationController < ActionController::API
 
   rescue_from ActiveRecord::RecordNotFound, with: :render_not_found
   rescue_from ActiveRecord::RecordInvalid, with: :render_record_invalid
+  rescue_from TransferLegMutationError, with: :render_transfer_leg_mutation
   rescue_from ActionController::InvalidAuthenticityToken, with: :render_invalid_csrf
   rescue_from ActionController::ParameterMissing, with: :render_parameter_missing
   rescue_from ActionDispatch::Http::Parameters::ParseError, with: :render_invalid_json
@@ -21,6 +22,10 @@ class ApplicationController < ActionController::API
 
   def render_not_found
     render_error("not_found", "The requested resource was not found.", status: :not_found)
+  end
+
+  def render_transfer_leg_mutation
+    render_error("transfer_leg_mutation", "Transfer legs are managed through their transfer.", status: :unprocessable_entity)
   end
 
   def render_record_invalid(exception)
