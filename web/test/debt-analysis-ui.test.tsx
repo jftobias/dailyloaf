@@ -4,11 +4,12 @@ import { renderWithProviders, TEST_USER } from "./helpers";
 import DebtsPage from "@/app/app/debts/page";
 import DebtDetailPage from "@/app/app/debts/[accountId]/page";
 import AnalysisPage from "@/app/app/analysis/page";
+import TransactionDetailPage from "@/app/app/transactions/[transactionId]/page";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
   usePathname: () => "/app/debts",
-  useParams: () => ({ accountId: "7" }),
+  useParams: () => ({ accountId: "7", transactionId: "272" }),
 }));
 
 const DEBT = {
@@ -50,8 +51,8 @@ const PROJECTION = {
   annual_interest_rate: "24.5",
   months: 6,
   payoff_date: "2026-07-21",
-  total_interest: "56.0",
-  total_paid: "556.0",
+  total_interest: "56.1234",
+  total_paid: "556.1234",
   amortizing: true,
   horizon_months: 600,
 };
@@ -154,6 +155,37 @@ describe("debt detail", () => {
     expect(screen.getByText("Pay this debt")).toBeInTheDocument();
   });
 
+  it("formats projection amounts with currency precision, not raw 4-decimal strings", async () => {
+    mockAuthenticated({
+      "/accounts": { accounts: [ASSET_ACCOUNT] },
+      "/debts/7/projection": { projection: PROJECTION },
+      "/debts/7": { debt: DEBT },
+    });
+    renderWithProviders(<DebtDetailPage />, "en");
+
+    await waitFor(() => expect(screen.getByText("Total estimated interest")).toBeInTheDocument());
+    const interest = screen.getByText("Total estimated interest").nextElementSibling?.textContent ?? "";
+    const paid = screen.getByText("Total estimated paid").nextElementSibling?.textContent ?? "";
+    expect(interest.replace(/\s/g, " ")).toMatch(/COP 56/);
+    expect(paid.replace(/\s/g, " ")).toMatch(/COP 556/);
+    expect(document.body.textContent).not.toContain("56.1234");
+    expect(document.body.textContent).not.toContain("556.1234");
+  });
+
+  it("formats projection amounts with currency precision in Spanish", async () => {
+    mockAuthenticated({
+      "/accounts": { accounts: [ASSET_ACCOUNT] },
+      "/debts/7/projection": { projection: PROJECTION },
+      "/debts/7": { debt: DEBT },
+    });
+    renderWithProviders(<DebtDetailPage />, "es");
+
+    await waitFor(() => expect(screen.getByText("Intereses totales estimados")).toBeInTheDocument());
+    const interest = screen.getByText("Intereses totales estimados").nextElementSibling?.textContent ?? "";
+    expect(interest.replace(/\s/g, " ")).toMatch(/\$ ?56/);
+    expect(document.body.textContent).not.toContain("56,1234");
+  });
+
   it("validates the profile form with localized messages", async () => {
     mockAuthenticated({
       "/accounts": { accounts: [] },
@@ -252,5 +284,57 @@ describe("navigation", () => {
     renderWithProviders(<DebtsPage />, "es");
     await waitFor(() => expect(screen.getByRole("link", { name: "Deudas" })).toBeInTheDocument());
     expect(screen.getByRole("link", { name: "Análisis" })).toBeInTheDocument();
+  });
+});
+
+describe("transfer leg detail", () => {
+  const LEG = {
+    id: 272,
+    account_id: 2,
+    category_id: null,
+    transfer_id: 61,
+    kind: "transfer",
+    account_impact: "-100.0",
+    status: "posted",
+    occurred_on: "2026-09-21",
+    description: "Transfer to Visa",
+    notes: null,
+    created_at: "2026-09-21T00:00:00Z",
+    updated_at: "2026-09-21T00:00:00Z",
+    reversal_of_id: null,
+    replacement_for_id: null,
+    reversal_id: null,
+    replacement_id: null,
+  };
+
+  it("hides mutation controls and links to the transfer aggregate", async () => {
+    mockAuthenticated({
+      "/accounts/2": { account: ASSET_ACCOUNT },
+      "/transactions/272": { transaction: LEG },
+      "/categories": { categories: [] },
+    });
+    renderWithProviders(<TransactionDetailPage />, "en");
+
+    const link = await screen.findByRole("link", { name: "View transfer" });
+    expect(link).toHaveAttribute("href", "/app/transfers/61");
+    expect(screen.getByText(/one account effect of a transfer/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reverse" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Correct posted record" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Post" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete pending" })).not.toBeInTheDocument();
+  });
+
+  it("shows the same read-only behavior for a pending leg in Spanish", async () => {
+    mockAuthenticated({
+      "/accounts/2": { account: ASSET_ACCOUNT },
+      "/transactions/272": { transaction: { ...LEG, status: "pending" } },
+      "/categories": { categories: [] },
+    });
+    renderWithProviders(<TransactionDetailPage />, "es");
+
+    await waitFor(() => expect(screen.getByRole("link", { name: "Ver transferencia" })).toBeInTheDocument());
+    expect(screen.queryByLabelText("Descripción")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Contabilizar" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reversar" })).not.toBeInTheDocument();
   });
 });

@@ -199,6 +199,8 @@ export const messages = {
     viewReplaced: "View replaced record",
     viewReversal: "View reversal",
     viewReplacement: "View replacement",
+    viewTransfer: "View transfer",
+    transferLegNote: "This entry is one account effect of a transfer. Edit or reverse it from the transfer detail.",
     editPendingTitle: "Edit pending transaction",
     saveEdit: "Save edit",
     deletePending: "Delete pending",

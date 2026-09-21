@@ -49,7 +49,50 @@ RSpec.describe TransferService do
     reversal = described_class.reverse!(transfer: transfer, user: user)
 
     expect(reversal.reversal_of).to eq(transfer)
+    expect(reversal.financial_transactions.pluck(:account_impact)).to contain_exactly(-50, 50)
     expect(source.reload.posted_balance.to_s).to eq("100.0")
     expect(destination.reload.posted_balance.to_s).to eq("-100.0")
+  end
+
+  it "rejects a second aggregate reversal" do
+    transfer = described_class.create!(household: household, user: user, source_account_id: source.id, destination_account_id: destination.id, amount: "50.0000")
+    described_class.reverse!(transfer: transfer, user: user)
+
+    expect do
+      described_class.reverse!(transfer: transfer, user: user)
+    end.to raise_error(ActiveRecord::RecordInvalid, /only be reversed once/)
+  end
+
+  it "rolls back the reversal when a leg fails" do
+    transfer = described_class.create!(household: household, user: user, source_account_id: source.id, destination_account_id: destination.id, amount: "50.0000")
+    legs_created = 0
+    allow_any_instance_of(ActiveRecord::Associations::CollectionProxy).to receive(:create!).and_wrap_original do |method, *args|
+      if args.first.is_a?(Hash) && args.first[:kind].to_s == "transfer"
+        legs_created += 1
+        raise ActiveRecord::RecordInvalid.new(FinancialTransaction.new) if legs_created == 2
+      end
+      method.call(*args)
+    end
+
+    expect do
+      described_class.reverse!(transfer: transfer, user: user)
+    end.to raise_error(ActiveRecord::RecordInvalid)
+
+    expect(transfer.reload.reversal).to be_nil
+    expect(transfer.financial_transactions.reload.size).to eq(2)
+    expect(source.reload.posted_balance.to_s).to eq("50.0")
+    expect(destination.reload.posted_balance.to_s).to eq("-50.0")
+  end
+
+  it "rejects transaction-level mutation of transfer legs" do
+    transfer = described_class.create!(household: household, user: user, source_account_id: source.id, destination_account_id: destination.id, amount: "50.0000")
+    leg = transfer.financial_transactions.detect { |item| item.account_id == source.id }
+
+    expect { FinancialTransactionService.update_pending!(transaction: leg, user: user, attributes: {}) }.to raise_error(TransferLegMutationError)
+    expect { FinancialTransactionService.post!(leg) }.to raise_error(TransferLegMutationError)
+    expect { FinancialTransactionService.reverse!(transaction: leg) }.to raise_error(TransferLegMutationError)
+    expect { FinancialTransactionService.correct!(transaction: leg, user: user, attributes: {}) }.to raise_error(TransferLegMutationError)
+    expect { FinancialTransactionService.destroy_pending!(transaction: leg) }.to raise_error(TransferLegMutationError)
+    expect(leg.reload.persisted?).to be(true)
   end
 end

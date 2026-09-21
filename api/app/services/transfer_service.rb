@@ -30,7 +30,7 @@ class TransferService
       source, destination = lock_accounts(transfer.household, user, attributes.fetch(:source_account_id, transfer.source_account_id), attributes.fetch(:destination_account_id, transfer.destination_account_id))
       raise ActiveRecord::RecordInvalid.new(transfer), "Only pending transfers can be edited" unless transfer.pending?
       transfer.update!(source_account: source, destination_account: destination, amount: attributes.fetch(:amount), currency_code: transfer.household.currency_code)
-      transfer.financial_transactions.destroy_all
+      transfer.financial_transactions.delete_all
       create_legs!(transfer, source: source, destination: destination, status: :pending)
       transfer
     end
@@ -40,7 +40,7 @@ class TransferService
     ApplicationRecord.transaction do
       source, destination = lock_accounts(transfer.household, user, transfer.source_account_id, transfer.destination_account_id)
       raise ActiveRecord::RecordInvalid.new(transfer), "Only posted transfers can be reversed" unless transfer.posted?
-      raise ActiveRecord::RecordInvalid.new(transfer), "A transfer can only be reversed once" if transfer.reversal.present?
+      raise ActiveRecord::RecordInvalid.new(transfer), "A transfer can only be reversed once" if transfer.household.transfers.exists?(reversal_of_id: transfer.id)
 
       reversal = transfer.household.transfers.create!(
         source_account: destination,
@@ -54,6 +54,8 @@ class TransferService
       create_legs!(reversal, source: destination, destination: source, status: :posted)
       reversal
     end
+  rescue ActiveRecord::RecordNotUnique
+    raise ActiveRecord::RecordInvalid.new(transfer), "A transfer can only be reversed once"
   end
 
   def self.fingerprint(attributes)

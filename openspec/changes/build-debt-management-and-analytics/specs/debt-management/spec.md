@@ -64,6 +64,61 @@ SHALL NOT be counted as income or expense anywhere in the system.
 - **AND** individual transfer legs remain immutable through ordinary
   transaction endpoints
 
+### Requirement: Guard the transfer aggregate boundary
+
+Every financial transaction belonging to a `Transfer` SHALL reject direct
+mutation through transaction-level services and endpoints — update, delete,
+post, reverse, and posted correction/replacement — with a stable
+`transfer_leg_mutation` error. Transfer legs SHALL remain readable for
+history. Creation, pending edits, and reversal SHALL occur only through
+`TransferService` and the aggregate transfer endpoints. Aggregate reversal
+SHALL create both opposite account effects in one transaction under
+deterministic account locking, SHALL remain idempotent, SHALL roll back
+entirely if either leg fails, and SHALL reject a second reversal. The UI
+SHALL NOT expose mutation controls on transfer-leg records and SHALL direct
+members to the transfer detail instead.
+
+#### Scenario: Reject direct mutation of a transfer leg
+
+- **GIVEN** a posted transfer with two transaction legs
+- **WHEN** a member PATCHes, POSTs to `post` or `reverse`, or DELETEs either
+  leg through the transactions API
+- **THEN** each request fails with `transfer_leg_mutation`
+- **AND** both account balances are unchanged
+- **AND** a leg belonging to another household still responds 404
+
+#### Scenario: Reverse the aggregate atomically
+
+- **GIVEN** a posted transfer
+- **WHEN** the member reverses it through the transfers endpoint
+- **THEN** a reversal transfer with two opposite legs is created atomically
+- **AND** both accounts return to their pre-transfer balances
+- **AND** a second reversal attempt is rejected
+
+#### Scenario: Roll back a failed reversal
+
+- **GIVEN** a posted transfer whose reversal leg creation fails midway
+- **WHEN** the reversal is attempted
+- **THEN** no reversal transfer or partial leg persists
+- **AND** both account balances are unchanged
+
+### Requirement: Present money with currency-aware formatting
+
+User-facing monetary values SHALL be rendered with the existing
+currency-aware formatter, honoring the currency's standard fraction digits
+(for COP, whole amounts such as `$ 34.162`). APIs and calculations SHALL
+keep exact `numeric(19,4)` decimal strings; the full precision SHALL NOT be
+exposed as normal financial UI on cards, tooltips, tables, chart axes, or
+accessible chart summaries.
+
+#### Scenario: Format a fractional projection amount
+
+- **GIVEN** a projection whose exact interest total is `"34161.5496"` COP
+- **WHEN** the payoff estimate is displayed in either locale
+- **THEN** the UI shows the currency-formatted amount (for example
+  `$ 34.162` in es-CO)
+- **AND** the four-decimal string never appears on screen
+
 ### Requirement: Estimate payoff with a documented deterministic projection
 
 The system SHALL compute a payoff estimate in Rails from the current posted

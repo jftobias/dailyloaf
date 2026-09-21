@@ -64,6 +64,7 @@ export type Transfer = {
   currency_code: string;
   status: "pending" | "posted";
   reversal_of_id: number | null;
+  reversed: boolean;
   transaction_ids: number[];
   created_at: string;
   updated_at: string;

@@ -141,7 +141,14 @@ export default function TransactionDetailPage() {
           <div><dt className="text-[#789089]">{t("transactions.created")}</dt><dd>{fmt.dateTime(transaction.created_at, selected?.time_zone)}</dd></div>
           <div><dt className="text-[#789089]">{t("transactions.updated")}</dt><dd>{fmt.dateTime(transaction.updated_at, selected?.time_zone)}</dd></div>
         </dl>
-        {(transaction.reversal_of_id || transaction.replacement_for_id || transaction.reversal_id || transaction.replacement_id) && (
+        {transaction.transfer_id ? (
+          <div className="mt-6 rounded-xl bg-[#edf4ef] p-4 text-sm">
+            <p className="font-semibold">{t("transactions.transferLegNote")}</p>
+            <div className="mt-2">
+              <Link href={`/app/transfers/${transaction.transfer_id}`} className="font-semibold text-[#0f4c4c] underline">{t("transactions.viewTransfer")}</Link>
+            </div>
+          </div>
+        ) : (transaction.reversal_of_id || transaction.replacement_for_id || transaction.reversal_id || transaction.replacement_id) && (
           <div className="mt-6 rounded-xl bg-[#edf4ef] p-4 text-sm">
             <p className="font-semibold">{t("transactions.correctionHistory")}</p>
             <div className="mt-2 flex flex-wrap gap-3">
@@ -153,7 +160,7 @@ export default function TransactionDetailPage() {
           </div>
         )}
       </Panel>
-      {transaction.status === "pending" ? (
+      {!transaction.transfer_id && (transaction.status === "pending" ? (
         <Panel className="mt-6" padded={false}>
           <form onSubmit={savePending} className="p-6">
             <h2 className="font-semibold">{t("transactions.editPendingTitle")}</h2>
@@ -186,7 +193,7 @@ export default function TransactionDetailPage() {
             </Button>
           </div>
         </>
-      )}
+      ))}
       {confirm && (
         <ConfirmDialog
           title={confirm === "correct" ? t("transactions.confirmCorrectTitle") : confirm === "reverse" ? t("transactions.confirmReverseTitle") : t("transactions.confirmDeleteTitle")}

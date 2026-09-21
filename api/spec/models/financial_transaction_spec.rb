@@ -23,4 +23,16 @@ RSpec.describe FinancialTransaction, type: :model do
 
     expect(transaction).not_to be_valid
   end
+
+  it "rejects updates and destroys on transfer legs" do
+    savings = household.accounts.create!(name: "Savings", account_type: :savings, currency_code: "COP", opening_balance_date: Date.current)
+    transfer = TransferService.create!(household: household, user: user, source_account_id: account.id, destination_account_id: savings.id, amount: "10.0000", status: :pending)
+    leg = transfer.financial_transactions.first
+
+    leg.description = "Changed"
+    expect(leg).not_to be_valid
+    expect(leg.errors[:transfer]).to include("legs are managed through the transfer aggregate")
+    expect(leg.destroy).to be(false)
+    expect(leg.reload.persisted?).to be(true)
+  end
 end

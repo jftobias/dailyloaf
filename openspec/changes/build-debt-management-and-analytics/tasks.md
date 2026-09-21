@@ -7,6 +7,8 @@
 - [x] Add `DebtsController` (index/show/projection) and `DebtProfilesController` (show/create/update/destroy) under the household scope with 404 isolation.
 - [x] Implement `DebtProjectionService` (declining-balance monthly, zero-interest, non-amortizing detection, 600-month cap, half-even rounding, household time zone).
 - [x] Backend specs: profile constraints, household isolation, privacy, archived behavior, payments via transfers + reversal, decimal strings, projection cases.
+- [x] Enforce the transfer aggregate boundary: reject transaction-level mutation of transfer legs (update/post/reverse/correct/delete) with a stable `transfer_leg_mutation` error, keep legs readable, and roll back partial aggregate reversals. Model/service/request regression coverage.
+- [x] Render money with currency-aware formatting (no raw `numeric(19,4)` strings in cards, tooltips, axes, tables, or accessible summaries); en/es regression tests.
 
 ## Backend — analytics
 

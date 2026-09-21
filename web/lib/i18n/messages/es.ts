@@ -204,6 +204,8 @@ export const messages: Widen<Messages> = {
     viewReplaced: "Ver registro reemplazado",
     viewReversal: "Ver reversa",
     viewReplacement: "Ver reemplazo",
+    viewTransfer: "Ver transferencia",
+    transferLegNote: "Este movimiento es un efecto de cuenta de una transferencia. Edítalo o revérsalo desde el detalle de la transferencia.",
     editPendingTitle: "Editar transacción pendiente",
     saveEdit: "Guardar edición",
     deletePending: "Eliminar pendiente",

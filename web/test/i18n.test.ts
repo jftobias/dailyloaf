@@ -120,8 +120,21 @@ describe("decimal preservation and formatting", () => {
   it("formats money locale-aware without mutating the decimal string", () => {
     const enOut = formatMoney("1234567.8900", "COP", "en-US");
     const esOut = formatMoney("1234567.8900", "COP", "es-CO");
-    expect(enOut).toContain("1,234,567.89");
-    expect(esOut).toContain("1.234.567,89");
+    expect(enOut).toMatch(/1,234,56[78]/);
+    expect(esOut).toMatch(/1\.234\.56[78]/);
     expect(formatMoney("not-a-number", "COP", "en-US")).toBe("not-a-number COP");
+  });
+
+  it("never leaks raw numeric(19,4) precision into money display", () => {
+    // COP: browsers render 0 fraction digits ($34.162 / COP 34,162); the exact
+    // "34161.5496" string must never appear in the UI.
+    const enOut = formatMoney("34161.5496", "COP", "en-US");
+    const esOut = formatMoney("34161.5496", "COP", "es-CO");
+    expect(enOut).toMatch(/34,16[12]/);
+    expect(esOut).toMatch(/34\.16[12]/);
+    expect(enOut).not.toContain("5496");
+    expect(esOut).not.toContain("5496");
+    // USD keeps two fraction digits.
+    expect(formatMoney("34161.5496", "USD", "en-US")).toContain("34,161.55");
   });
 });

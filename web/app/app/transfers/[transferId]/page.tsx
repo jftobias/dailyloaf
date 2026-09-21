@@ -95,8 +95,8 @@ export default function TransferDetailPage() {
             </form>
           )}
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button type="button" variant="destructive" disabled={Boolean(transfer.reversal_of_id) || transfer.status !== "posted"} onClick={() => setConfirming(true)}>
-              {transfer.reversal_of_id ? t("transfers.alreadyReversed") : t("transfers.reverse")}
+            <Button type="button" variant="destructive" disabled={Boolean(transfer.reversal_of_id) || transfer.reversed || transfer.status !== "posted"} onClick={() => setConfirming(true)}>
+              {transfer.reversal_of_id || transfer.reversed ? t("transfers.alreadyReversed") : t("transfers.reverse")}
             </Button>
           </div>
           <Alert message={error} />
