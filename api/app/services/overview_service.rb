@@ -6,13 +6,13 @@ class OverviewService
 
     accounts = visible_accounts(household, user, scope)
     account_ids = accounts.pluck(:id)
-    transactions = household.financial_transactions.where(account_id: account_ids).posted_in(from, to).includes(:category)
+    transactions = household.financial_transactions.where(account_id: account_ids).posted_in(from, to).includes(:category, :reversal_of)
     balances = accounts.each_with_object({}) { |account, result| result[account.id] = account.opening_balance }
     household.financial_transactions.where(account_id: account_ids, status: :posted).group(:account_id).sum(:account_impact).each { |id, amount| balances[id] += amount }
     assets = accounts.select(&:asset?).sum { |account| balances[account.id] }
     liabilities = accounts.select(&:liability?).sum { |account| -balances[account.id] }
-    income = transactions.select(&:income?).sum(&:account_impact)
-    expenses = transactions.select(&:expense?).sum { |transaction| -transaction.account_impact }
+    income = transactions.sum { |transaction| transaction.income? ? transaction.account_impact : transaction.reversal_of&.income? ? transaction.account_impact : 0 }
+    expenses = transactions.sum { |transaction| transaction.expense? ? -transaction.account_impact : transaction.reversal_of&.expense? ? -transaction.account_impact : 0 }
 
     {
       scope: scope,
@@ -25,7 +25,7 @@ class OverviewService
       expenses: decimal(expenses),
       cash_flow: decimal(income - expenses),
       account_balances: accounts.index_with { |account| decimal(balances[account.id]) }.transform_keys(&:to_s),
-      category_totals: transactions.select { |transaction| transaction.income? || transaction.expense? }.group_by(&:category).each_with_object({}) { |(category, entries), result| result[category.id.to_s] = decimal(entries.sum { |entry| entry.income? ? entry.account_impact : -entry.account_impact }) }
+      category_totals: transactions.select { |transaction| transaction.income? || transaction.expense? || transaction.reversal_of&.income? || transaction.reversal_of&.expense? }.group_by { |transaction| transaction.category || transaction.reversal_of.category }.each_with_object({}) { |(category, entries), result| result[category.id.to_s] = decimal(entries.sum { |entry| entry.income? || entry.reversal_of&.income? ? entry.account_impact : -entry.account_impact }) }
     }
   end
 

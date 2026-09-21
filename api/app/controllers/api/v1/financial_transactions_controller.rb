@@ -60,7 +60,7 @@ module Api
       end
 
       def transaction_json(transaction)
-        { id: transaction.id, account_id: transaction.account_id, category_id: transaction.category_id, transfer_id: transaction.transfer_id, kind: transaction.kind, account_impact: financial_decimal(transaction.account_impact), status: transaction.status, occurred_on: transaction.occurred_on, description: transaction.description, notes: transaction.notes, reversal_of_id: transaction.reversal_of_id, replacement_for_id: transaction.replacement_for_id }
+        { id: transaction.id, account_id: transaction.account_id, category_id: transaction.category_id, transfer_id: transaction.transfer_id, kind: transaction.kind, account_impact: financial_decimal(transaction.account_impact), status: transaction.status, occurred_on: transaction.occurred_on, description: transaction.description, notes: transaction.notes, created_at: transaction.created_at, updated_at: transaction.updated_at, reversal_of_id: transaction.reversal_of_id, replacement_for_id: transaction.replacement_for_id, reversal_id: transaction.reversal&.id, replacement_id: transaction.replacement&.id }
       end
     end
   end

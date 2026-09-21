@@ -19,10 +19,19 @@ export function useSelectedHousehold() {
   const selected = user?.households.find((household) => household.id === preference) ?? user?.households[0];
 
   useEffect(() => {
+    const changed = (event: Event) => setPreference((event as CustomEvent<number>).detail);
+    window.addEventListener("dailyloaf:household-changed", changed);
     if (selected) window.localStorage.setItem(key, String(selected.id));
+    return () => window.removeEventListener("dailyloaf:household-changed", changed);
   }, [selected]);
 
-  return { selected, households: user?.households ?? [], select: setPreference };
+  function select(id: number) {
+    setPreference(id);
+    window.localStorage.setItem(key, String(id));
+    window.dispatchEvent(new CustomEvent("dailyloaf:household-changed", { detail: id }));
+  }
+
+  return { selected, households: user?.households ?? [], select };
 }
 
 export function FinancialShell({ children, title }: Readonly<{ children: React.ReactNode; title: string }>) {

@@ -29,6 +29,11 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
   const [error, setError] = useState<ApiError | null>(null);
 
   useEffect(() => {
+    const unauthorized = () => {
+      setUser(null);
+      setStatus("unauthenticated");
+    };
+    window.addEventListener("dailyloaf:unauthorized", unauthorized);
     let active = true;
 
     getCurrentUser()
@@ -45,6 +50,7 @@ export function AuthProvider({ children }: Readonly<{ children: React.ReactNode 
 
     return () => {
       active = false;
+      window.removeEventListener("dailyloaf:unauthorized", unauthorized);
     };
   }, []);
 

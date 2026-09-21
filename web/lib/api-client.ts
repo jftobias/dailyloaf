@@ -50,6 +50,10 @@ export type FinancialTransaction = {
   notes: string | null;
   reversal_of_id: number | null;
   replacement_for_id: number | null;
+  reversal_id: number | null;
+  replacement_id: number | null;
+  created_at: string;
+  updated_at: string;
 };
 
 export type Transfer = {
@@ -61,6 +65,8 @@ export type Transfer = {
   status: "pending" | "posted";
   reversal_of_id: number | null;
   transaction_ids: number[];
+  created_at: string;
+  updated_at: string;
 };
 
 export type Overview = {
@@ -167,6 +173,7 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}, retrie
   if (response.ok) return parseResponse<T>(response);
 
   const error = await errorFromResponse(response);
+  if (response.status === 401 && typeof window !== "undefined") window.dispatchEvent(new Event("dailyloaf:unauthorized"));
   if (isStateChanging(method) && !retried && error.code === "invalid_csrf_token") {
     clearCsrfToken();
     const retryHeaders = new Headers(init.headers);
@@ -216,12 +223,17 @@ export const createCategory = (householdId: number, input: Record<string, unknow
 export const archiveCategory = (householdId: number, id: number) => apiRequest<void>(householdPath(householdId, `categories/${id}/archive`), { method: "POST" });
 
 export const listTransactions = (householdId: number) => apiRequest<{ transactions: FinancialTransaction[] }>(householdPath(householdId, "transactions"));
+export const getTransaction = (householdId: number, id: number) => apiRequest<{ transaction: FinancialTransaction }>(householdPath(householdId, `transactions/${id}`));
+export const deleteTransaction = (householdId: number, id: number) => apiRequest<{ reversal?: FinancialTransaction } | void>(householdPath(householdId, `transactions/${id}`), { method: "DELETE" });
 export const createTransaction = (householdId: number, input: Record<string, unknown>, idempotencyKey: string) => apiRequest<{ transaction: FinancialTransaction }>(householdPath(householdId, "transactions"), { method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify(input) });
-export const updateTransaction = (householdId: number, id: number, input: Record<string, unknown>) => apiRequest<{ transaction: FinancialTransaction }>(householdPath(householdId, `transactions/${id}`), { method: "PATCH", body: JSON.stringify(input) });
+export type TransactionUpdateResponse = { transaction: FinancialTransaction } | { reversal: FinancialTransaction; replacement: FinancialTransaction };
+export const updateTransaction = (householdId: number, id: number, input: Record<string, unknown>) => apiRequest<TransactionUpdateResponse>(householdPath(householdId, `transactions/${id}`), { method: "PATCH", body: JSON.stringify(input) });
 export const postTransaction = (householdId: number, id: number) => apiRequest<{ transaction: FinancialTransaction }>(householdPath(householdId, `transactions/${id}/post`), { method: "POST" });
 export const reverseTransaction = (householdId: number, id: number) => apiRequest<{ reversal: FinancialTransaction }>(householdPath(householdId, `transactions/${id}/reverse`), { method: "POST" });
 
 export const listTransfers = (householdId: number) => apiRequest<{ transfers: Transfer[] }>(householdPath(householdId, "transfers"));
+export const getTransfer = (householdId: number, id: number) => apiRequest<{ transfer: Transfer }>(householdPath(householdId, `transfers/${id}`));
+export const updateTransfer = (householdId: number, id: number, input: Record<string, unknown>) => apiRequest<{ transfer: Transfer }>(householdPath(householdId, `transfers/${id}`), { method: "PATCH", body: JSON.stringify(input) });
 export const createTransfer = (householdId: number, input: Record<string, unknown>, idempotencyKey: string) => apiRequest<{ transfer: Transfer }>(householdPath(householdId, "transfers"), { method: "POST", headers: { "Idempotency-Key": idempotencyKey }, body: JSON.stringify(input) });
 export const reverseTransfer = (householdId: number, id: number) => apiRequest<{ reversal: Transfer }>(householdPath(householdId, `transfers/${id}/reverse`), { method: "POST" });
 

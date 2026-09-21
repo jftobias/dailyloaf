@@ -39,7 +39,7 @@ module Api
       end
 
       def transfer_json(transfer)
-        { id: transfer.id, source_account_id: transfer.source_account_id, destination_account_id: transfer.destination_account_id, amount: financial_decimal(transfer.amount), currency_code: transfer.currency_code, status: transfer.status, reversal_of_id: transfer.reversal_of_id, transaction_ids: transfer.financial_transactions.ids }
+        { id: transfer.id, source_account_id: transfer.source_account_id, destination_account_id: transfer.destination_account_id, amount: financial_decimal(transfer.amount), currency_code: transfer.currency_code, status: transfer.status, created_at: transfer.created_at, updated_at: transfer.updated_at, reversal_of_id: transfer.reversal_of_id, transaction_ids: transfer.financial_transactions.ids }
       end
     end
   end

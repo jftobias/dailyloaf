@@ -7,6 +7,7 @@ import { FinancialShell, useSelectedHousehold } from "@/components/financial/fin
 import { FinancialError } from "@/components/financial/financial-error";
 import { FormField } from "@/components/form-field";
 import { createAccount } from "@/lib/api-client";
+import { todayInTimeZone } from "@/lib/financial-format";
 
 const types = ["cash", "checking", "savings", "credit_card", "loan", "investment", "other_asset", "other_liability"] as const;
 
@@ -26,7 +27,7 @@ export default function NewAccountPage() {
     event.preventDefault();
     if (!selected || !name.trim()) return setError("Enter an account name.");
     setSaving(true); setError("");
-    try { await createAccount(selected.id, { name: name.trim(), account_type: type, opening_balance: openingBalance, opening_balance_date: new Date().toISOString().slice(0, 10), visibility }, crypto.randomUUID()); router.push("/app/accounts"); }
+    try { await createAccount(selected.id, { name: name.trim(), account_type: type, opening_balance: openingBalance, opening_balance_date: todayInTimeZone(selected.time_zone), visibility }, crypto.randomUUID()); router.push("/app/accounts"); }
     catch (requestError) { setError(requestError instanceof Error ? requestError.message : "Account could not be created."); }
     finally { setSaving(false); }
   }
