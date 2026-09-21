@@ -5,6 +5,7 @@ class Household < ApplicationRecord
   has_many :categories, dependent: :destroy
   has_many :financial_transactions, dependent: :restrict_with_exception
   has_many :transfers, dependent: :restrict_with_exception
+  has_many :debt_profiles, dependent: :destroy
   after_create :provision_default_categories
 
   normalizes :currency_code, with: ->(code) { code.to_s.strip.upcase }

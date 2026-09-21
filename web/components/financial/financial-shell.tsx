@@ -41,6 +41,8 @@ const NAV_LINKS = [
   { key: "nav.overview", href: "/app" },
   { key: "nav.accounts", href: "/app/accounts" },
   { key: "nav.transactions", href: "/app/transactions" },
+  { key: "nav.debts", href: "/app/debts" },
+  { key: "nav.analysis", href: "/app/analysis" },
   { key: "nav.categories", href: "/app/settings/categories" },
 ] as const;
 

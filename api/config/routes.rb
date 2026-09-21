@@ -13,7 +13,12 @@ Rails.application.routes.draw do
         resources :memberships, only: %i[index update destroy], controller: "household_memberships"
         resources :accounts, only: %i[index show create update], controller: "accounts" do
           post :archive, on: :member
+          resource :debt_profile, only: %i[show create update destroy], controller: "debt_profiles"
         end
+        resources :debts, only: %i[index show], param: :account_id, controller: "debts" do
+          get :projection, on: :member
+        end
+        get "analytics", to: "analytics#show"
         resources :categories, only: %i[index create update], controller: "categories" do
           post :archive, on: :member
         end
