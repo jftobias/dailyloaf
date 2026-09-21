@@ -1,9 +1,29 @@
-export function formatMoney(value: string, currency = "COP") {
+/**
+ * Presentation-only formatting. API monetary values stay decimal strings
+ * end-to-end; Intl is used for display only and never for business math.
+ */
+
+export function formatMoney(value: string, currency = "COP", intlLocale = "en-US") {
   try {
-    return new Intl.NumberFormat("en-US", { style: "currency", currency, maximumFractionDigits: 4 }).format(Number(value));
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return `${value} ${currency}`;
+    return new Intl.NumberFormat(intlLocale, { style: "currency", currency, maximumFractionDigits: 4 }).format(amount);
   } catch {
     return `${value} ${currency}`;
   }
+}
+
+/** Formats an occurred_on date ("YYYY-MM-DD") or ISO timestamp for display. */
+export function formatDate(value: string, intlLocale = "en-US", timeZone = "America/Bogota") {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T12:00:00Z`) : new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(intlLocale, { dateStyle: "medium", timeZone }).format(date);
+}
+
+export function formatDateTime(value: string, intlLocale = "en-US", timeZone = "America/Bogota") {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(intlLocale, { dateStyle: "medium", timeStyle: "short", timeZone }).format(date);
 }
 
 export function monthRange(timeZone = "America/Bogota") {

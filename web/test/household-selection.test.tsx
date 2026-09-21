@@ -1,6 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthProvider } from "@/components/auth-provider";
+import { renderWithProviders } from "./helpers";
 import AppPage from "@/app/app/page";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: vi.fn() }), usePathname: () => "/app" }));
@@ -24,7 +24,7 @@ describe("household selection", () => {
     window.localStorage.setItem("dailyloaf.selectedHouseholdId", "999");
     vi.spyOn(global, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ user }), { status: 200, headers: { "Content-Type": "application/json" } })));
 
-    render(<AuthProvider><AppPage /></AuthProvider>);
+    renderWithProviders(<AppPage />);
 
     await waitFor(() => {
       expect(screen.getAllByText("Home").length).toBeGreaterThan(0);
@@ -35,7 +35,7 @@ describe("household selection", () => {
   it("shows a selector for multiple households", async () => {
     vi.spyOn(global, "fetch").mockImplementation(() => Promise.resolve(new Response(JSON.stringify({ user }), { status: 200, headers: { "Content-Type": "application/json" } })));
 
-    render(<AuthProvider><AppPage /></AuthProvider>);
+    renderWithProviders(<AppPage />);
 
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Select household" })).toBeInTheDocument());
   });
