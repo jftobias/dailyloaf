@@ -67,6 +67,29 @@ RSpec.describe "Authentication API", type: :request do
     expect(response).to have_http_status(:unauthorized)
   end
 
+  it "validates the configurable SameSite cookie policy" do
+    original = ENV["SESSION_COOKIE_SAME_SITE"]
+    ENV["SESSION_COOKIE_SAME_SITE"] = "none"
+    controller = Api::V1::Auth::SessionsController.new
+
+    expect { controller.send(:session_cookie_same_site) }.to raise_error(RuntimeError, /requires production HTTPS/)
+    allow(Rails.env).to receive(:production?).and_return(true)
+    expect(controller.send(:session_cookie_same_site)).to eq(:none)
+
+    ENV["SESSION_COOKIE_SAME_SITE"] = "invalid"
+    expect { controller.send(:session_cookie_same_site) }.to raise_error(RuntimeError, /must be lax or none/)
+  ensure
+    ENV["SESSION_COOKIE_SAME_SITE"] = original
+  end
+
+  it "configures native rate limiting callbacks for auth endpoints" do
+    session_callbacks = Api::V1::Auth::SessionsController._process_action_callbacks.map(&:filter)
+    registration_callbacks = Api::V1::Auth::RegistrationsController._process_action_callbacks.map(&:filter)
+
+    expect(session_callbacks.count { |filter| filter.respond_to?(:call) }).to be >= 2
+    expect(registration_callbacks.count { |filter| filter.respond_to?(:call) }).to be >= 1
+  end
+
   it "rejects state changes without a CSRF token" do
     register_user
     household_id = JSON.parse(response.body).dig("household", "id")
@@ -98,6 +121,13 @@ RSpec.describe "Authentication API", type: :request do
 
     expect(response.headers["Access-Control-Allow-Origin"]).to eq(configured_origin)
     expect(response.headers["Access-Control-Allow-Credentials"]).to eq("true")
+
+    options "/api/v1/auth/csrf", headers: {
+      "HTTP_ORIGIN" => configured_origin,
+      "HTTP_ACCESS_CONTROL_REQUEST_METHOD" => "POST",
+      "HTTP_ACCESS_CONTROL_REQUEST_HEADERS" => "X-CSRF-Token, Idempotency-Key"
+    }
+    expect(response.headers["Access-Control-Allow-Headers"]).to include("Idempotency-Key")
 
     get "/api/v1/auth/csrf", headers: { "HTTP_ORIGIN" => "http://evil.example" }
 

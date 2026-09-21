@@ -1,0 +1,24 @@
+# Railway deployment settings for the DailyLoaf API service.
+#
+# DEPRECATED FORMAT: railway.toml is Railway's legacy Config as Code. It is
+# still read during deployments for existing services until 2026-12-01, after
+# which it must be migrated to Infrastructure as Code (.railway/railway.ts).
+# See docs/BETA_DEPLOYMENT.md for the migration note.
+#
+# This file lives in api/ because the Railway service is configured with
+# Root Directory: /api (a dashboard setting that cannot be encoded here).
+# Paths below are relative to that service root.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+# Runs once per release, before the new version receives traffic.
+# Creates/migrates the primary and Solid Cache databases; server startup
+# intentionally does not run migrations.
+preDeployCommand = ["bin/rails db:prepare"]
+healthcheckPath = "/up"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10

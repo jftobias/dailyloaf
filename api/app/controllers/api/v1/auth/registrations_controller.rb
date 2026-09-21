@@ -3,6 +3,7 @@ module Api
     module Auth
       class RegistrationsController < BaseController
         allow_unauthenticated_access only: :create
+        rate_limit to: 5, within: 1.minute, only: :create, with: -> { render_error("rate_limited", "Too many registration attempts. Try again later.", status: :too_many_requests) }
 
         def create
           result = RegistrationService.call(

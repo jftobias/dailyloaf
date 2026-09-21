@@ -55,8 +55,12 @@ module Api
         FinancialTransaction.where(account_id: visible_accounts).find(params[:id])
       end
 
+      TRANSACTION_ATTRIBUTE_KEYS = %i[account_id category_id kind account_impact status occurred_on description notes].freeze
+
       def transaction_params
-        params.permit(:account_id, :category_id, :kind, :account_impact, :status, :occurred_on, :description, :notes)
+        TRANSACTION_ATTRIBUTE_KEYS.each_with_object({}) do |key, attributes|
+          attributes[key] = params[key] if params.key?(key)
+        end
       end
 
       def transaction_json(transaction)

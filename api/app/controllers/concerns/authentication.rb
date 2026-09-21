@@ -39,10 +39,18 @@ module Authentication
     cookies.delete(SESSION_COOKIE, **session_cookie_options.except(:value))
   end
 
+  def session_cookie_same_site
+    value = ENV.fetch("SESSION_COOKIE_SAME_SITE", "lax").downcase
+    raise "SESSION_COOKIE_SAME_SITE must be lax or none" unless %w[lax none].include?(value)
+    raise "SESSION_COOKIE_SAME_SITE=none requires production HTTPS" if value == "none" && !Rails.env.production?
+
+    value.to_sym
+  end
+
   def session_cookie_options(session = nil)
     {
       httponly: true,
-      same_site: :lax,
+      same_site: session_cookie_same_site,
       secure: Rails.env.production?,
       expires: session&.expires_at || Session::LIFETIME.from_now
     }

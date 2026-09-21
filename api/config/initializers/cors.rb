@@ -1,4 +1,4 @@
-cors_origins = ENV.fetch("CORS_ORIGINS", "http://localhost:3000").split(",").map(&:strip).reject(&:empty?)
+cors_origins = (ENV["CORS_ORIGINS"].presence || ENV.fetch("FRONTEND_URL", "http://localhost:3000")).split(",").map(&:strip).reject(&:empty?)
 
 if cors_origins.empty? || cors_origins.any? { |origin| origin.include?("*") }
   raise "CORS_ORIGINS must contain one or more explicit, non-wildcard origins"

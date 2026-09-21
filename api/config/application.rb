@@ -40,7 +40,11 @@ module Api
     # Middleware like session, flash, cookies can be added back manually.
     # Skip views, helpers and assets when generating a new resource.
     config.api_only = true
+    session_same_site = ENV.fetch("SESSION_COOKIE_SAME_SITE", "lax").downcase
+    raise "SESSION_COOKIE_SAME_SITE must be lax or none" unless %w[lax none].include?(session_same_site)
+    raise "SESSION_COOKIE_SAME_SITE=none requires production HTTPS" if session_same_site == "none" && !Rails.env.production?
+
     config.middleware.use ActionDispatch::Cookies
-    config.middleware.use ActionDispatch::Session::CookieStore, key: "_dailyloaf_csrf", httponly: true, same_site: :lax, secure: Rails.env.production?
+    config.middleware.use ActionDispatch::Session::CookieStore, key: "_dailyloaf_csrf", httponly: true, same_site: session_same_site.to_sym, secure: Rails.env.production?
   end
 end
