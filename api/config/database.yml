@@ -1,0 +1,22 @@
+default: &default
+  adapter: postgresql
+  encoding: unicode
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS", 5) %>
+  host: <%= ENV.fetch("POSTGRES_HOST", "localhost") %>
+  port: <%= ENV.fetch("POSTGRES_PORT", 5432) %>
+  username: <%= ENV.fetch("POSTGRES_USER", "dailyloaf") %>
+  password: <%= ENV.fetch("POSTGRES_PASSWORD", "dailyloaf_development") %>
+
+development:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"].presence %>
+  database: <%= ENV.fetch("POSTGRES_DB", "dailyloaf_development") %>
+
+test:
+  <<: *default
+  url: <%= ENV["TEST_DATABASE_URL"].presence %>
+  database: <%= ENV.fetch("POSTGRES_TEST_DB", "dailyloaf_test") %>
+
+production:
+  <<: *default
+  url: <%= ENV["DATABASE_URL"].presence %>

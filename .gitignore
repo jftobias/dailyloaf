@@ -1,0 +1,22 @@
+.env
+.env.*
+!.env.example
+.DS_Store
+
+# Ruby / Rails
+api/.bundle/
+api/log/*
+api/tmp/*
+api/config/master.key
+api/config/credentials/*.key
+api/.kamal/
+api/coverage/
+
+# JavaScript / Next.js
+web/node_modules/
+web/.next/
+web/out/
+web/coverage/
+
+# Docker / local state
+*.pid

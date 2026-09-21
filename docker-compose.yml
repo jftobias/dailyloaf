@@ -1,0 +1,70 @@
+services:
+  db:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-dailyloaf_development}
+      POSTGRES_USER: ${POSTGRES_USER:-dailyloaf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dailyloaf_development}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      RAILS_ENV: ${RAILS_ENV:-development}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-dailyloaf}:${POSTGRES_PASSWORD:-dailyloaf_development}@db:5432/${POSTGRES_DB:-dailyloaf_development}
+      TEST_DATABASE_URL: postgresql://${POSTGRES_USER:-dailyloaf}:${POSTGRES_PASSWORD:-dailyloaf_development}@db:5432/${POSTGRES_TEST_DB:-dailyloaf_test}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-dailyloaf_development}
+      POSTGRES_USER: ${POSTGRES_USER:-dailyloaf}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dailyloaf_development}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./api:/rails
+      - rails_bundle:/usr/local/bundle
+    depends_on:
+      db:
+        condition: service_healthy
+    command: >-
+      sh -c "rm -f tmp/pids/server.pid &&
+      bin/rails db:prepare &&
+      bin/rails server -b 0.0.0.0 -p 3000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:3000/up > /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      target: development
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      NEXT_TELEMETRY_DISABLED: 1
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./web:/app
+      - web_node_modules:/app/node_modules
+      - web_next:/app/.next
+    command: ["pnpm", "dev", "--hostname", "0.0.0.0", "--port", "3000"]
+
+volumes:
+  postgres_data:
+  rails_bundle:
+  web_node_modules:
+  web_next:

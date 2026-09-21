@@ -1,0 +1,24 @@
+context: |
+  DailyLoaf is a household financial management application.
+
+  Target architecture:
+  - Rails 8.1 JSON API
+  - PostgreSQL 18
+  - Next.js 16, React, and TypeScript
+  - RSpec and browser-level frontend tests
+
+  Financial constraints:
+  - Monetary calculations belong in Rails.
+  - AI must never be the source of truth for calculations.
+  - Money uses exact decimals, never floats.
+  - Household privacy boundaries must be enforced server-side.
+  - AI analysis uses structured outputs from a calculated financial snapshot.
+
+rules:
+  tasks:
+    - Include automated tests for every financial calculation.
+    - Include authorization tests whenever household data is affected.
+    - Run backend and frontend quality checks before completion.
+  operations:
+    apply:
+      - Do not alter financial behavior outside the approved specification.
