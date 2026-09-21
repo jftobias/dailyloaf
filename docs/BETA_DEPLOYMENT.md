@@ -1,19 +1,19 @@
 # DailyLoaf ten-user beta runbook
 
-This is a preparation and operations runbook. It does not deploy anything and contains placeholders only.
+This is a preparation and operations runbook. It does not deploy anything and contains no secret values.
 
 ## Production topology
 
 Use same-site custom subdomains for the durable beta:
 
-- `app.<custom-domain>` → Vercel
-- `api.<custom-domain>` → Railway
+- `dailyloaf.online` → Vercel (Next.js frontend, already deployed)
+- `api.dailyloaf.online` → Railway (Rails API)
 
-The API session cookie remains host-only to the API domain, HttpOnly, Secure, and SameSite=Lax. The browser sends `credentials: "include"`; Rails CORS allows exactly `https://app.<custom-domain>`. Production and staging must never share databases, cookies, credentials, or secrets.
+The API session cookie remains host-only to the API domain, HttpOnly, Secure, and SameSite=Lax. The browser sends `credentials: "include"`; Rails CORS allows exactly `https://dailyloaf.online`. Production and staging must never share databases, cookies, credentials, or secrets.
 
 ### Temporary provider-domain test mode
 
-Before custom DNS is available, use the stable Vercel production `*.vercel.app` origin and generated Railway `*.up.railway.app` API origin. Set the exact Vercel origin in `CORS_ORIGINS`, use HTTPS, and set `SESSION_COOKIE_SAME_SITE=none`. This mode still uses Secure, HttpOnly, host-only cookies, credentials, and CSRF. Test with regular Chrome configured to allow third-party cookies. Do not use this mode for arbitrary preview origins; return to `lax` after custom same-site subdomains are active.
+Before custom DNS is available, the stable Vercel production `*.vercel.app` origin and a generated Railway `*.up.railway.app` API origin may be used for validation. Set the exact Vercel origin in `CORS_ORIGINS`, use HTTPS, and set `SESSION_COOKIE_SAME_SITE=none`. This mode still uses Secure, HttpOnly, host-only cookies, credentials, and CSRF. Test with regular Chrome configured to allow third-party cookies. Do not use this mode for arbitrary preview origins; return to `lax` once `api.dailyloaf.online` is active.
 
 ## 1. Create production Rails credentials
 
@@ -21,68 +21,101 @@ From a trusted local checkout:
 
 ```sh
 cd api
-RAILS_ENV=production bin/rails credentials:edit --environment production
+bin/rails credentials:edit --environment production
 ```
 
-This creates `config/credentials/production.yml.enc` and a local `config/credentials/production.key`. Commit only the encrypted file if it contains no unintended values. Copy the key into Railway as `RAILS_MASTER_KEY`; never commit, print, document, or put it in a Docker image. Do not replace `config/master.key`, which is the development key.
+This creates `config/credentials/production.yml.enc` and a local `config/credentials/production.key`. Both already exist for this repository; preserve them and do not rotate unless there is a security reason. The encrypted file is committed; the key file is gitignored and stays local-only.
+
+Railway's `RAILS_MASTER_KEY` variable must contain the contents of `api/config/credentials/production.key`. Seal the variable after adding it. Never commit, print, document, or bake the key into a Docker image. Do not replace `config/master.key`, which is the development key.
 
 The current beta does not use an OpenAI key. Do not add `OPENAI_API_KEY` until an approved AI feature consumes it.
 
-## 2. Create Railway services
+## 2. Railway API service
 
-1. Connect the GitHub repository in Railway.
-2. Create a production environment and a separate staging environment.
-3. Create an API service rooted at `api/` using `api/Dockerfile` and its `production` target.
-4. Create Railway PostgreSQL in the same production environment.
-5. Reference the database service's private `DATABASE_URL`; do not paste a public URL into source control.
-6. Set the API release/pre-deploy command to `bin/rails db:prepare`.
-7. Set the API start command to `bin/rails server -b 0.0.0.0`. Puma reads Railway's `PORT`.
-8. Configure the health check path `/up`, restart policy, and log retention.
-9. Add the custom API domain `api.<custom-domain>` after DNS is ready.
-10. Enable database backups/PITR according to the selected Railway plan.
+A previous deployment attempt failed because Railway built the repository root with Railpack. The API is not a root-level app: the service must be scoped to `api/` and built from its Dockerfile. With `Root Directory: /api`, Railway finds `api/Dockerfile` and `api/railway.toml` automatically.
 
-Do not add Redis or a worker service for the current MVP. Production rate limiting uses Rails' native limiter backed by `Rails.cache`; production config selects Solid Cache with its separate `cache` database, so limits persist across restarts and are shared by API instances using the same database.
+### Dashboard settings (manual — not encodable in config files)
 
-## 3. Railway variables
+| Setting | Value |
+|---|---|
+| Service name | `api` |
+| Source repo | `jftobias/dailyloaf` |
+| GitHub branch | `main` |
+| Root Directory | `/api` |
+| Environment | `staging` for validation; `production` for beta |
 
-Set these privately in Railway:
+### Build and deploy settings
+
+These are codified in `api/railway.toml` (legacy Config as Code; readable until 2026-12-01, then migrate to `.railway/railway.ts` Infrastructure as Code). The same values can be set in the dashboard, which the file overrides during deployments that read it:
+
+| Setting | Value |
+|---|---|
+| Builder | `Dockerfile` (not Railpack) |
+| Dockerfile path | `Dockerfile` (relative to the `/api` root) |
+| Pre-deploy command | `bin/rails db:prepare` |
+| Health-check path | `/up` |
+| Health-check timeout | `300` seconds |
+| Restart policy | `ON_FAILURE`, max 10 retries |
+| Start command | Dockerfile default (`bin/rails server -b 0.0.0.0`); leave unset |
+
+Migrations run once per release through the pre-deploy command, never inside Puma startup.
+
+### PostgreSQL service
+
+- One Railway PostgreSQL service named `Postgres` serves both the primary and Solid Cache connections for this beta.
+- Reference `DATABASE_URL` via Railway reference variables; do not manually copy the PostgreSQL username, password, hostname, or port.
+- Do not enable public networking on the PostgreSQL service.
+- Do not add Redis or a worker service for the current MVP.
+
+Production rate limiting uses Rails' native limiter backed by `Rails.cache`; production config selects Solid Cache on the named `cache` connection, so limits persist across restarts and are shared by API instances using the same database.
+
+## 3. Railway API service variables
 
 ```text
 RAILS_ENV=production
-RAILS_MASTER_KEY=<production-key>
-DATABASE_URL=<private-railway-postgresql-url>
-CACHE_DATABASE_URL=<same-private-railway-postgresql-url>
-CORS_ORIGINS=https://app.<custom-domain>
-FRONTEND_URL=https://app.<custom-domain>
+RAILS_MASTER_KEY=<contents of api/config/credentials/production.key>
+
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+CACHE_DATABASE_URL=${{Postgres.DATABASE_URL}}
+
+CORS_ORIGINS=https://dailyloaf.online
+FRONTEND_URL=https://dailyloaf.online
+SESSION_COOKIE_SAME_SITE=lax
+
 RAILS_MAX_THREADS=5
 WEB_CONCURRENCY=1
-RAILS_LOG_TO_STDOUT=1
+RAILS_LOG_TO_STDOUT=true
 ```
 
-`PORT` is platform-provided. Never set a production `NEXT_PUBLIC_*` secret. Never configure `OPENAI_API_KEY` yet.
+Notes:
+
+- `DATABASE_URL` and `CACHE_DATABASE_URL` intentionally reference the same `Postgres` service for the beta; Rails keeps separate connections and migration paths (`db/migrate` vs `db/cache_migrate`). Split them only if a real need appears.
+- Do not define `PORT`; Railway supplies it and Puma reads it via `config/puma.rb`.
+- Seal `RAILS_MASTER_KEY` after adding it.
+- `SESSION_COOKIE_SAME_SITE=lax` is correct for the shared `dailyloaf.online` parent domain. Use `none` only for the temporary provider-domain test mode.
+- Never set a `NEXT_PUBLIC_*` secret, and never configure `OPENAI_API_KEY` yet.
 
 ## 4. Deploy and health check
 
-After a reviewed production deployment is initiated through Railway:
+After a reviewed deployment through Railway:
 
 ```sh
-curl -fsS https://api.<custom-domain>/up
+curl -fsS https://<generated>.up.railway.app/up
 ```
 
-Inspect Railway deployment logs and health status. A release failure must stop before traffic is switched. Migrations run once through the release command, not during every Puma start.
+Validate `/up` on the Railway-generated domain **before** adding the custom API domain. Once it passes, add the custom host `api.dailyloaf.online` in Railway and configure its DNS record.
 
-## 5. Configure the domain and Vercel
+Inspect Railway deployment logs and health status. A pre-deploy (`db:prepare`) failure must stop the release before traffic is switched.
 
-1. Purchase or select the custom domain.
-2. Point `api.<custom-domain>` to Railway using the DNS record Railway provides.
-3. Point `app.<custom-domain>` to Vercel using the DNS record Vercel provides.
-4. In Vercel, keep the project root directory `web`.
-5. Use pnpm with install command `pnpm install --frozen-lockfile`.
-6. Use build command `pnpm build`.
-7. Set production `NEXT_PUBLIC_API_URL=https://api.<custom-domain>`.
-8. Redeploy Vercel after changing any `NEXT_PUBLIC_*` value; public values are build-time inputs.
+## 5. Domain and Vercel
 
-No `vercel.json` is required for the current Next.js project.
+1. Point `api.dailyloaf.online` to Railway using the DNS record Railway provides (only after `/up` passes on the generated domain).
+2. Point `dailyloaf.online` to Vercel using the DNS record Vercel provides.
+3. In Vercel, keep the project root directory `web`.
+4. Use pnpm with install command `pnpm install --frozen-lockfile`.
+5. Use build command `pnpm build`; Next.js output defaults apply (no `vercel.json` required).
+6. Set production `NEXT_PUBLIC_API_URL=https://api.dailyloaf.online`.
+7. Redeploy Vercel after changing any `NEXT_PUBLIC_*` value; public values are build-time inputs.
 
 ## 6. Production smoke test
 
