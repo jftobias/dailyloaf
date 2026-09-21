@@ -3,6 +3,8 @@ module Api
     module Auth
       class SessionsController < BaseController
         allow_unauthenticated_access only: %i[create csrf]
+        rate_limit to: 10, within: 3.minutes, only: :create, with: -> { render_error("rate_limited", "Too many sign-in attempts. Try again later.", status: :too_many_requests) }
+        rate_limit to: 30, within: 1.minute, only: :csrf, with: -> { render_error("rate_limited", "Too many CSRF requests. Try again later.", status: :too_many_requests) }
 
         def create
           user = User.authenticate_by(email_address: params[:email], password: params[:password])

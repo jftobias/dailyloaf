@@ -18,5 +18,11 @@ test:
   database: <%= ENV.fetch("POSTGRES_TEST_DB", "dailyloaf_test") %>
 
 production:
-  <<: *default
-  url: <%= ENV["DATABASE_URL"].presence %>
+  primary:
+    <<: *default
+    url: <%= ENV.fetch("DATABASE_URL") %>
+    migrations_paths: db/migrate
+  cache:
+    <<: *default
+    url: <%= ENV.fetch("CACHE_DATABASE_URL", ENV.fetch("DATABASE_URL")) %>
+    migrations_paths: db/cache_migrate

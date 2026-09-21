@@ -1,6 +1,6 @@
 # DailyLoaf
 
-DailyLoaf is a private household financial management application. This repository currently contains the application foundations and local Docker development environment; the financial domain is intentionally not implemented yet.
+DailyLoaf is a private household financial management application. This repository contains the Rails API, Next.js frontend, core financial ledger, lifecycle UI, and local Docker development environment.
 
 ## Architecture
 
@@ -72,4 +72,6 @@ docker compose exec web pnpm lint
 docker compose exec web pnpm typecheck
 ```
 
-The current API foundation includes native Rails cookie authentication and household access. Authentication endpoints are versioned under `/api/v1/auth`: register, create/delete session, current user, and CSRF token. Household routes are under `/api/v1/households/:household_id/...` and enforce membership server-side. Financial records are intentionally not implemented yet.
+The current API includes native Rails cookie authentication, household access, and the core financial ledger. Authentication endpoints are versioned under `/api/v1/auth`; financial routes are under `/api/v1/households/:household_id/...` and enforce membership/privacy server-side. Financial UI and lifecycle routes are documented in OpenSpec.
+
+For production beta preparation, see [`docs/BETA_DEPLOYMENT.md`](docs/BETA_DEPLOYMENT.md) and the safe variable inventory at [`deploy/production.env.example`](deploy/production.env.example).

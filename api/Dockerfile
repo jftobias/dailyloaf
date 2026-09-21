@@ -39,7 +39,8 @@ RUN SECRET_KEY_BASE_DUMMY=1 bundle exec rails assets:precompile
 FROM base AS production
 
 ENV RAILS_ENV=production \
-    BUNDLE_WITHOUT=development:test
+    BUNDLE_WITHOUT=development:test \
+    RAILS_LOG_TO_STDOUT=1
 
 RUN groupadd --system --gid 1000 rails \
   && useradd --system --uid 1000 --gid 1000 --create-home rails
@@ -47,4 +48,5 @@ COPY --from=dependencies /usr/local/bundle /usr/local/bundle
 COPY --from=build --chown=rails:rails /rails /rails
 USER rails
 EXPOSE 3000
-CMD ["bin/rails", "server", "-b", "0.0.0.0", "-p", "3000"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl -fsS "http://localhost:${PORT:-3000}/up" || exit 1
+CMD ["bin/rails", "server", "-b", "0.0.0.0"]
