@@ -40,6 +40,11 @@ RUN groupadd --system --gid 1000 rails \
   && useradd --system --uid 1000 --gid 1000 --create-home rails
 # API-only app: no asset pipeline, so no assets:precompile step is needed.
 COPY --chown=rails:rails . .
+# Runtime-writable dirs are absent from clean git checkouts (git never tracks
+# empty dirs), and /rails itself stays root-owned after COPY, so create them
+# explicitly with rails ownership before dropping privileges.
+RUN mkdir -p tmp/pids tmp/cache tmp/sockets log storage \
+  && chown -R rails:rails tmp log storage
 USER rails
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 CMD curl -fsS "http://localhost:${PORT:-3000}/up" || exit 1
