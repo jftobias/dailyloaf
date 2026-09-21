@@ -3,11 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/components/auth-provider";
+import { useT } from "@/components/locale-provider";
 
 export function AuthLoading() {
+  const t = useT();
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f7f2e8] px-6 text-[#0f4c4c]">
-      <p role="status" className="text-sm font-semibold tracking-wide">Checking your DailyLoaf session…</p>
+      <p role="status" className="text-sm font-semibold tracking-wide">{t("common.checkingSession")}</p>
     </main>
   );
 }

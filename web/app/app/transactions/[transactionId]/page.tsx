@@ -1,12 +1,18 @@
 "use client";
 
+import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { AuthLoading, useRequireAuth } from "@/components/route-guards";
+import { useT } from "@/components/locale-provider";
+import { useFormatters } from "@/lib/i18n/use-formatters";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { FinancialShell, useSelectedHousehold } from "@/components/financial/financial-shell";
-import { FinancialError } from "@/components/financial/financial-error";
 import { FinancialLoading } from "@/components/financial/financial-loading";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Panel } from "@/components/ui/panel";
+import { controlClasses } from "@/components/ui/control-classes";
 import {
   deleteTransaction,
   getAccount,
@@ -20,11 +26,15 @@ import {
   type FinancialTransaction,
 } from "@/lib/api-client";
 import { displayTransactionAmount, positiveAmountToImpact } from "@/lib/financial-format";
+import { apiErrorMessage } from "@/lib/form-errors";
+import { categoryLabel, kindLabel, statusLabel } from "@/lib/i18n/presentation";
 
 export default function TransactionDetailPage() {
   const auth = useRequireAuth();
   const { selected } = useSelectedHousehold();
   const params = useParams<{ transactionId: string }>();
+  const t = useT();
+  const fmt = useFormatters();
   const [transaction, setTransaction] = useState<FinancialTransaction | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -48,10 +58,10 @@ export default function TransactionDetailPage() {
         setDescription(item.description);
         setAmount(displayTransactionAmount(item.kind, item.account_impact));
       })
-      .catch((requestError: unknown) => setError(requestError instanceof Error ? requestError.message : "Transaction could not be loaded."));
+      .catch((requestError: unknown) => setError(apiErrorMessage(requestError, t)));
   };
 
-  useEffect(load, [params.transactionId, selected]);
+  useEffect(load, [params.transactionId, selected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (auth.status === "loading" || auth.status === "unauthenticated") return <AuthLoading />;
 
@@ -74,7 +84,7 @@ export default function TransactionDetailPage() {
       setCorrecting(false);
       load();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "The transaction could not be changed.");
+      setError(apiErrorMessage(requestError, t));
     } finally {
       setWorking(false);
     }
@@ -88,7 +98,7 @@ export default function TransactionDetailPage() {
       await updateTransaction(selected.id, transaction.id, { account_id: transaction.account_id, category_id: transaction.category_id, kind: transaction.kind, account_impact: positiveAmountToImpact(transaction.kind === "expense" ? "expense" : "income", amount), occurred_on: transaction.occurred_on, description, status: "pending" });
       load();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "The pending transaction could not be edited.");
+      setError(apiErrorMessage(requestError, t));
     } finally {
       setWorking(false);
     }
@@ -101,42 +111,92 @@ export default function TransactionDetailPage() {
       await postTransaction(selected.id, transaction.id);
       load();
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "The transaction could not be posted.");
+      setError(apiErrorMessage(requestError, t));
     } finally {
       setWorking(false);
     }
   }
 
-  if (error && !transaction) return <FinancialShell title="Transaction"><FinancialError message={error} /></FinancialShell>;
-  if (!transaction) return <FinancialShell title="Transaction detail"><FinancialLoading /></FinancialShell>;
+  if (error && !transaction) return <FinancialShell title={t("transactions.fallbackTitle")}><Alert message={error} /></FinancialShell>;
+  if (!transaction) return <FinancialShell title={t("transactions.detailTitle")}><FinancialLoading /></FinancialShell>;
 
-  const categoryName = categories.find((category) => category.id === transaction.category_id)?.name ?? "Not categorized";
+  const categoryRecord = categories.find((category) => category.id === transaction.category_id);
+  const categoryName = categoryRecord ? categoryLabel(categoryRecord, t) : t("common.notCategorized");
 
   return (
-    <FinancialShell title="Transaction detail">
-      <div className="rounded-2xl border border-[#d9cdb9] bg-[#fffdf8] p-6">
+    <FinancialShell title={t("transactions.detailTitle")}>
+      <Panel>
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div><p className="text-sm uppercase tracking-[0.2em] text-[#b0802f]">{transaction.kind}</p><h2 className="mt-2 text-2xl font-semibold">{transaction.description}</h2><p className="mt-1 text-sm text-[#5d716b]">{transaction.occurred_on} · {transaction.status}</p></div>
-          <p className="text-2xl font-semibold">{displayTransactionAmount(transaction.kind, transaction.account_impact)} {account?.currency_code}</p>
+          <div>
+            <p className="text-sm uppercase tracking-[0.2em] text-[#b0802f]">{kindLabel(transaction.kind, t)}</p>
+            <h2 className="mt-2 text-2xl font-semibold">{transaction.description}</h2>
+            <p className="mt-1 text-sm text-[#5d716b]">{fmt.date(transaction.occurred_on, selected?.time_zone)} · {statusLabel(transaction.status, t)}</p>
+          </div>
+          <p className="text-2xl font-semibold">{fmt.money(displayTransactionAmount(transaction.kind, transaction.account_impact), account?.currency_code ?? "COP")}</p>
         </div>
-        {error && <div className="mt-4"><FinancialError message={error} /></div>}
-        <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2"><div><dt className="text-[#789089]">Account</dt><dd className="font-semibold">{account?.name}</dd></div><div><dt className="text-[#789089]">Category</dt><dd className="font-semibold">{categoryName}</dd></div><div><dt className="text-[#789089]">Created</dt><dd>{new Date(transaction.created_at).toLocaleString()}</dd></div><div><dt className="text-[#789089]">Updated</dt><dd>{new Date(transaction.updated_at).toLocaleString()}</dd></div></dl>
-        {(transaction.reversal_of_id || transaction.replacement_for_id || transaction.reversal_id || transaction.replacement_id) && <div className="mt-6 rounded-xl bg-[#edf4ef] p-4 text-sm"><p className="font-semibold">Correction history</p><div className="mt-2 flex flex-wrap gap-3">{transaction.reversal_of_id && <a href={`/app/transactions/${transaction.reversal_of_id}`} className="font-semibold text-[#0f4c4c] underline">View original record</a>}{transaction.replacement_for_id && <a href={`/app/transactions/${transaction.replacement_for_id}`} className="font-semibold text-[#0f4c4c] underline">View replaced record</a>}{transaction.reversal_id && <a href={`/app/transactions/${transaction.reversal_id}`} className="font-semibold text-[#0f4c4c] underline">View reversal</a>}{transaction.replacement_id && <a href={`/app/transactions/${transaction.replacement_id}`} className="font-semibold text-[#0f4c4c] underline">View replacement</a>}</div></div>}
-      </div>
+        <Alert message={error} />
+        <dl className="mt-6 grid gap-4 text-sm sm:grid-cols-2">
+          <div><dt className="text-[#789089]">{t("transactions.account")}</dt><dd className="font-semibold">{account?.name}</dd></div>
+          <div><dt className="text-[#789089]">{t("transactions.category")}</dt><dd className="font-semibold">{categoryName}</dd></div>
+          <div><dt className="text-[#789089]">{t("transactions.created")}</dt><dd>{fmt.dateTime(transaction.created_at, selected?.time_zone)}</dd></div>
+          <div><dt className="text-[#789089]">{t("transactions.updated")}</dt><dd>{fmt.dateTime(transaction.updated_at, selected?.time_zone)}</dd></div>
+        </dl>
+        {(transaction.reversal_of_id || transaction.replacement_for_id || transaction.reversal_id || transaction.replacement_id) && (
+          <div className="mt-6 rounded-xl bg-[#edf4ef] p-4 text-sm">
+            <p className="font-semibold">{t("transactions.correctionHistory")}</p>
+            <div className="mt-2 flex flex-wrap gap-3">
+              {transaction.reversal_of_id && <Link href={`/app/transactions/${transaction.reversal_of_id}`} className="font-semibold text-[#0f4c4c] underline">{t("transactions.viewOriginal")}</Link>}
+              {transaction.replacement_for_id && <Link href={`/app/transactions/${transaction.replacement_for_id}`} className="font-semibold text-[#0f4c4c] underline">{t("transactions.viewReplaced")}</Link>}
+              {transaction.reversal_id && <Link href={`/app/transactions/${transaction.reversal_id}`} className="font-semibold text-[#0f4c4c] underline">{t("transactions.viewReversal")}</Link>}
+              {transaction.replacement_id && <Link href={`/app/transactions/${transaction.replacement_id}`} className="font-semibold text-[#0f4c4c] underline">{t("transactions.viewReplacement")}</Link>}
+            </div>
+          </div>
+        )}
+      </Panel>
       {transaction.status === "pending" ? (
-        <form onSubmit={savePending} className="mt-6 rounded-2xl border border-[#d9cdb9] bg-[#fffdf8] p-6">
-          <h2 className="font-semibold">Edit pending transaction</h2>
-          <input aria-label="Description" value={description} onChange={(event) => setDescription(event.target.value)} className="mt-4 w-full rounded-xl border border-[#cdbfa9] p-3" />
-          <input aria-label="Amount" value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" className="mt-3 w-full rounded-xl border border-[#cdbfa9] p-3" />
-          <div className="mt-4 flex gap-3"><button disabled={working} className="rounded-xl bg-[#0f4c4c] px-4 py-2 font-semibold text-white">Save edit</button><button type="button" onClick={() => setConfirm("delete")} className="rounded-xl border border-[#d99a91] px-4 py-2 font-semibold text-[#8c3028]">Delete pending</button><button type="button" onClick={post} className="rounded-xl border border-[#b9c9c0] px-4 py-2 font-semibold">Post</button></div>
-        </form>
+        <Panel className="mt-6" padded={false}>
+          <form onSubmit={savePending} className="p-6">
+            <h2 className="font-semibold">{t("transactions.editPendingTitle")}</h2>
+            <input aria-label={t("transactions.description")} value={description} onChange={(event) => setDescription(event.target.value)} className={`mt-4 ${controlClasses}`} />
+            <input aria-label={t("transactions.amount")} value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" className={`mt-3 ${controlClasses}`} />
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button type="submit" size="sm" loading={working} loadingLabel={t("common.working")}>{t("transactions.saveEdit")}</Button>
+              <Button type="button" size="sm" variant="destructive" onClick={() => setConfirm("delete")}>{t("transactions.deletePending")}</Button>
+              <Button type="button" size="sm" variant="secondary" onClick={post}>{t("transactions.post")}</Button>
+            </div>
+          </form>
+        </Panel>
       ) : (
         <>
-          {correcting && <form onSubmit={(event: FormEvent) => { event.preventDefault(); setConfirm("correct"); }} className="mt-6 rounded-2xl border border-[#d9cdb9] bg-[#fffdf8] p-6"><h2 className="font-semibold">Correct posted record</h2><p className="mt-2 text-sm text-[#5d716b]">The original will remain preserved and a reversal/replacement pair will be created.</p><input aria-label="Corrected description" value={description} onChange={(event) => setDescription(event.target.value)} className="mt-4 w-full rounded-xl border border-[#cdbfa9] p-3" /><input aria-label="Corrected amount" value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" className="mt-3 w-full rounded-xl border border-[#cdbfa9] p-3" /><button className="mt-4 rounded-xl bg-[#0f4c4c] px-4 py-2 font-semibold text-white">Review correction</button></form>}
-          <div className="mt-6 flex flex-wrap gap-3"><button type="button" onClick={() => setCorrecting(true)} className="rounded-xl bg-[#0f4c4c] px-4 py-3 font-semibold text-white">Correct posted record</button><button type="button" disabled={Boolean(transaction.reversal_of_id || transaction.reversal_id)} onClick={() => setConfirm("reverse")} className="rounded-xl border border-[#d99a91] px-4 py-3 font-semibold text-[#8c3028] disabled:opacity-50">{transaction.reversal_of_id || transaction.reversal_id ? "Already corrected/reversed" : "Reverse"}</button></div>
+          {correcting && (
+            <Panel className="mt-6" padded={false}>
+              <form onSubmit={(event: FormEvent) => { event.preventDefault(); setConfirm("correct"); }} className="p-6">
+                <h2 className="font-semibold">{t("transactions.correctTitle")}</h2>
+                <p className="mt-2 text-sm text-[#5d716b]">{t("transactions.correctExplanation")}</p>
+                <input aria-label={t("transactions.correctedDescription")} value={description} onChange={(event) => setDescription(event.target.value)} className={`mt-4 ${controlClasses}`} />
+                <input aria-label={t("transactions.correctedAmount")} value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" className={`mt-3 ${controlClasses}`} />
+                <Button type="submit" size="sm" className="mt-4">{t("transactions.reviewCorrection")}</Button>
+              </form>
+            </Panel>
+          )}
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Button type="button" onClick={() => setCorrecting(true)}>{t("transactions.correctTitle")}</Button>
+            <Button type="button" variant="destructive" disabled={Boolean(transaction.reversal_of_id || transaction.reversal_id)} onClick={() => setConfirm("reverse")}>
+              {transaction.reversal_of_id || transaction.reversal_id ? t("transactions.alreadyReversed") : t("transactions.reverse")}
+            </Button>
+          </div>
         </>
       )}
-      {confirm && <ConfirmDialog title={confirm === "correct" ? "Correct this posted transaction?" : confirm === "reverse" ? "Reverse this transaction?" : "Delete pending transaction?"} description={confirm === "correct" ? "The original remains preserved. DailyLoaf will create a reversal and replacement." : "This action changes the financial record while preserving the ledger rules."} confirmLabel={confirm === "correct" ? "Create correction" : confirm === "reverse" ? "Reverse transaction" : "Delete pending"} onConfirm={() => perform(confirm)} onCancel={() => setConfirm(null)} busy={working} />}
+      {confirm && (
+        <ConfirmDialog
+          title={confirm === "correct" ? t("transactions.confirmCorrectTitle") : confirm === "reverse" ? t("transactions.confirmReverseTitle") : t("transactions.confirmDeleteTitle")}
+          description={confirm === "correct" ? t("transactions.confirmCorrectDescription") : t("transactions.confirmLifecycleDescription")}
+          confirmLabel={confirm === "correct" ? t("transactions.createCorrection") : confirm === "reverse" ? t("transactions.reverseConfirm") : t("transactions.deletePendingConfirm")}
+          onConfirm={() => perform(confirm)}
+          onCancel={() => setConfirm(null)}
+          busy={working}
+        />
+      )}
     </FinancialShell>
   );
 }
