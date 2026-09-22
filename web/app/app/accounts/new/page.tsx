@@ -3,9 +3,10 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthLoading, useRequireAuth } from "@/components/route-guards";
-import { useT } from "@/components/locale-provider";
+import { useI18n, useT } from "@/components/locale-provider";
 import { FinancialShell, useSelectedHousehold } from "@/components/financial/financial-shell";
 import { FormField } from "@/components/form-field";
+import { MoneyField } from "@/components/money-field";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -13,33 +14,51 @@ import { SelectField } from "@/components/ui/select-field";
 import { createAccount, type Account } from "@/lib/api-client";
 import { todayInTimeZone } from "@/lib/financial-format";
 import { apiErrorMessage } from "@/lib/form-errors";
+import { canonicalizeMoneyInput } from "@/lib/money-input";
 
 const ACCOUNT_TYPES: Account["account_type"][] = ["cash", "checking", "savings", "credit_card", "loan", "investment", "other_asset", "other_liability"];
+const LIABILITY_TYPES: Account["account_type"][] = ["credit_card", "loan", "other_liability"];
 
 export default function NewAccountPage() {
   const auth = useRequireAuth();
   const { selected } = useSelectedHousehold();
   const router = useRouter();
   const t = useT();
+  const { intlLocale } = useI18n();
   const [name, setName] = useState("");
   const [type, setType] = useState<Account["account_type"]>("checking");
-  const [openingBalance, setOpeningBalance] = useState("0.0000");
+  const [openingBalance, setOpeningBalance] = useState("0");
+  const [creditLimit, setCreditLimit] = useState("");
   const [visibility, setVisibility] = useState<"shared" | "private">("shared");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
   if (auth.status === "loading" || auth.status === "unauthenticated") return <AuthLoading />;
 
+  const liability = LIABILITY_TYPES.includes(type);
+  const currency = selected?.currency_code ?? "COP";
+
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!selected || !name.trim()) {
+    if (!selected) return;
+    if (!name.trim()) {
       setError(t("accounts.enterName"));
+      return;
+    }
+    const opening = canonicalizeMoneyInput(openingBalance, intlLocale);
+    if (opening === null || opening.startsWith("-")) {
+      setError(t("accounts.invalidOpeningAmount"));
+      return;
+    }
+    const limit = creditLimit.trim() ? canonicalizeMoneyInput(creditLimit, intlLocale) : null;
+    if (type === "credit_card" && creditLimit.trim() && (limit === null || limit.startsWith("-") || /^0+(\.0+)?$/.test(limit))) {
+      setError(t("accounts.invalidCreditLimit"));
       return;
     }
     setSaving(true);
     setError("");
     try {
-      await createAccount(selected.id, { name: name.trim(), account_type: type, opening_balance: openingBalance, opening_balance_date: todayInTimeZone(selected.time_zone), visibility }, crypto.randomUUID());
+      await createAccount(selected.id, { name: name.trim(), account_type: type, opening_balance: opening, opening_balance_date: todayInTimeZone(selected.time_zone), visibility, ...(type === "credit_card" && limit ? { credit_limit: limit } : {}) }, crypto.randomUUID());
       router.push("/app/accounts");
     } catch (requestError) {
       setError(apiErrorMessage(requestError, t));
@@ -57,7 +76,24 @@ export default function NewAccountPage() {
           <SelectField id="account-type" label={t("accounts.accountType")} value={type} onChange={(event) => setType(event.target.value as Account["account_type"])}>
             {ACCOUNT_TYPES.map((value) => <option key={value} value={value}>{t(`accountTypes.${value}`)}</option>)}
           </SelectField>
-          <FormField id="opening-balance" label={t("accounts.openingBalance")} inputMode="decimal" value={openingBalance} onChange={(event) => setOpeningBalance(event.target.value)} />
+          <MoneyField
+            id="opening-balance"
+            label={liability ? t("accounts.amountOwed") : t("accounts.openingBalance")}
+            hint={liability ? t("accounts.amountOwedHint") : undefined}
+            value={openingBalance}
+            onChange={setOpeningBalance}
+            currency={currency}
+          />
+          {type === "credit_card" && (
+            <MoneyField
+              id="credit-limit"
+              label={t("accounts.creditLimit")}
+              hint={t("accounts.creditLimitHint")}
+              value={creditLimit}
+              onChange={setCreditLimit}
+              currency={currency}
+            />
+          )}
           <SelectField id="visibility" label={t("accounts.visibilityLabel")} value={visibility} onChange={(event) => setVisibility(event.target.value as "shared" | "private")}>
             <option value="shared">{t("visibility.sharedWithHousehold")}</option>
             <option value="private">{t("visibility.privateToMe")}</option>

@@ -24,6 +24,10 @@ const DEBT = {
   projected_balance: "-500.0",
   debt_balance: "500.0",
   projected_debt_balance: "500.0",
+  credit_limit: "2000.0",
+  available_credit: "1500.0",
+  utilization_percentage: "25.0",
+  over_limit_amount: "0.0",
   profile: {
     id: 1,
     account_id: 7,
@@ -67,6 +71,7 @@ const ASSET_ACCOUNT = {
   visibility: "shared",
   private_owner_id: null,
   archived_at: null,
+  credit_limit: null,
   posted_balance: "1000.0",
   pending_impact: "0.0",
   projected_balance: "1000.0",

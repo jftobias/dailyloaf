@@ -33,6 +33,96 @@ interest/fees are recorded. Debt payment = existing transfer: source active
 asset → destination active liability, same household/currency/visibility rules,
 idempotency and reversal unchanged. Transfers are never income/expense.
 
+## Opening-balance normalization boundary
+
+Root cause of the acceptance console fix: `AccountService.create!` persisted
+`opening_balance` verbatim, and the form offered no sign guidance, so a
+positive "amount owed" stored an asset-side balance on a liability account.
+
+Single normalization boundary — `AccountService.create!`:
+
+- The API receives `opening_balance` as a **non-negative user-facing amount**
+  ("amount currently owed" for liabilities). Negative input is rejected with a
+  validation error.
+- The service converts to the canonical signed value by `account_type`:
+  liability types → `-amount`, asset types → `+amount`.
+- `Account` validates the persisted sign (liability `<= 0`, asset `>= 0`) so an
+  invalid sign can never enter the ledger regardless of client.
+- Serializers keep exposing the canonical signed `opening_balance`; debt
+  surfaces already present `-balance` as the positive debt magnitude.
+- Frontend never negates — it always submits the positive entered value, so
+  account-type changes cannot double-negate.
+- Existing rows: dev/test data only; no production data and no backfill —
+  previously entered liabilities with wrong signs are invalid fixtures, not
+  data to migrate.
+
+## Credit limit and available credit
+
+`credit_limit` lives on **`accounts`**, not `debt_profiles`. Rationale: the
+limit is a property of the card contract, editable alongside the account name
+through the account resource, and must survive "remove debt configuration"
+(which deletes only payoff metadata). `debt_profile` removal therefore never
+erases the limit. Deviation from the suggested placement is deliberate.
+
+- `accounts.credit_limit` — `numeric(19,4)`, nullable, check constraint `> 0`
+  when present; model allows it only when `account_type == "credit_card"`.
+  Rejected (422) on loans and other liabilities; existing cards stay valid
+  with `NULL`; no backfill.
+- Available credit is computed in `DebtsController#debt_json` (serialized for
+  credit-card accounts with a limit):
+  `available_credit = credit_limit - projected_debt_balance` where
+  `projected_debt_balance = -projected_balance` (posted + pending impacts).
+  `utilization_percentage = projected_debt_balance / credit_limit * 100`,
+  half-even rounded to 2 decimal places; `over_limit_amount =
+  max(0, projected_debt_balance - credit_limit)`. All `BigDecimal`, all
+  decimal-string JSON, negative available credit preserved.
+- Pending transactions reduce projected availability; posted/reversed activity
+  shifts it through the same projected-balance path — no separate math.
+- Available credit is **borrowing capacity only**: it is metadata derived from
+  the ledger, not a transaction, so net worth, assets, income, and cash flow
+  are structurally unaffected (proved by regression specs).
+
+## Card/debt detail UX
+
+- Prominent labeled actions on the debt detail page: **Edit card information**
+  (account name + credit limit via account PATCH, plus debt-profile fields via
+  profile POST/PATCH), **Record payment** (existing transfer form), **Archive
+  card** (existing archive endpoint).
+- "Remove debt configuration" deletes only the `DebtProfile` — the dialog
+  states the account, limit, and transaction history remain.
+- No hard delete for accounts with ledger history; archival is the
+  user-facing removal path. Unused-account deletion is not introduced.
+- Credit-card detail shows: limit, posted/projected debt, available credit,
+  utilization bar (accessible progressbar + textual summary), over-limit
+  state, and a note that availability is estimated from transactions recorded
+  in DailyLoaf.
+
+## Localized money input
+
+`MoneyField` (labeled) / `MoneyInput` (bare) component backed by
+`lib/money-input.ts` helpers, applied to every monetary form (opening
+balance, credit limit, transaction/transfer amounts, debt payment, profile
+money fields):
+
+- Canonical value is always a decimal string (`"500000"`, `"1234.56"`); no
+  Float for canonical conversion or validation.
+- While focused, members type/paste freely with locale decimal separator
+  (`,` for `es`, `.` for `en`) and the opposite separator treated as
+  grouping; on blur the display is grouped via `Intl.NumberFormat` (max 4
+  fraction digits, no forced `0.0000`). On focus the raw canonical value is
+  shown for editing — no cursor jumping, no silent rewrites.
+- Currency code shown as an input adornment; `inputMode="decimal"`;
+  `aria-describedby` links hint/error/currency context.
+- The account form labels liability opening input "amount currently owed"
+  (positive) and shows a separate "total credit limit" field for credit
+  cards, explaining the two values are independent.
+
+## Product copy
+
+The landing footer and any other copy mentioning Rails, services, or storage
+internals is replaced with user-focused language; a regression test asserts
+the internal phrases never render in either locale.
+
 ## API
 
 - `GET /api/v1/households/:hid/debts` — liability accounts visible to the user

@@ -4,9 +4,10 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { AuthLoading, useRequireAuth } from "@/components/route-guards";
-import { useT } from "@/components/locale-provider";
+import { useI18n, useT } from "@/components/locale-provider";
 import { useFormatters } from "@/lib/i18n/use-formatters";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { MoneyField } from "@/components/money-field";
 import { FinancialShell, useSelectedHousehold } from "@/components/financial/financial-shell";
 import { FinancialLoading } from "@/components/financial/financial-loading";
 import { Alert } from "@/components/ui/alert";
@@ -28,6 +29,7 @@ import {
 import { displayTransactionAmount, positiveAmountToImpact } from "@/lib/financial-format";
 import { apiErrorMessage } from "@/lib/form-errors";
 import { categoryLabel, kindLabel, statusLabel } from "@/lib/i18n/presentation";
+import { canonicalizeMoneyInput } from "@/lib/money-input";
 
 export default function TransactionDetailPage() {
   const auth = useRequireAuth();
@@ -35,6 +37,7 @@ export default function TransactionDetailPage() {
   const params = useParams<{ transactionId: string }>();
   const t = useT();
   const fmt = useFormatters();
+  const { intlLocale } = useI18n();
   const [transaction, setTransaction] = useState<FinancialTransaction | null>(null);
   const [account, setAccount] = useState<Account | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -75,7 +78,7 @@ export default function TransactionDetailPage() {
         account_id: transaction.account_id,
         category_id: transaction.category_id,
         kind: transaction.kind,
-        account_impact: positiveAmountToImpact(transaction.kind === "expense" ? "expense" : "income", amount),
+        account_impact: positiveAmountToImpact(transaction.kind === "expense" ? "expense" : "income", canonicalizeMoneyInput(amount, intlLocale) ?? amount),
         occurred_on: transaction.occurred_on,
         description,
         status: "posted",
@@ -95,7 +98,13 @@ export default function TransactionDetailPage() {
     if (!selected || !transaction) return;
     setWorking(true);
     try {
-      await updateTransaction(selected.id, transaction.id, { account_id: transaction.account_id, category_id: transaction.category_id, kind: transaction.kind, account_impact: positiveAmountToImpact(transaction.kind === "expense" ? "expense" : "income", amount), occurred_on: transaction.occurred_on, description, status: "pending" });
+      const canonicalAmount = canonicalizeMoneyInput(amount, intlLocale);
+      if (canonicalAmount === null || canonicalAmount.startsWith("-")) {
+        setError(t("money.invalidAmount"));
+        setWorking(false);
+        return;
+      }
+      await updateTransaction(selected.id, transaction.id, { account_id: transaction.account_id, category_id: transaction.category_id, kind: transaction.kind, account_impact: positiveAmountToImpact(transaction.kind === "expense" ? "expense" : "income", canonicalAmount), occurred_on: transaction.occurred_on, description, status: "pending" });
       load();
     } catch (requestError) {
       setError(apiErrorMessage(requestError, t));
@@ -165,7 +174,9 @@ export default function TransactionDetailPage() {
           <form onSubmit={savePending} className="p-6">
             <h2 className="font-semibold">{t("transactions.editPendingTitle")}</h2>
             <input aria-label={t("transactions.description")} value={description} onChange={(event) => setDescription(event.target.value)} className={`mt-4 ${controlClasses}`} />
-            <input aria-label={t("transactions.amount")} value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" className={`mt-3 ${controlClasses}`} />
+            <div className="mt-3">
+              <MoneyField id="pending-amount" label={t("transactions.amount")} value={amount} onChange={setAmount} currency={account?.currency_code ?? selected?.currency_code ?? "COP"} />
+            </div>
             <div className="mt-4 flex flex-wrap gap-3">
               <Button type="submit" size="sm" loading={working} loadingLabel={t("common.working")}>{t("transactions.saveEdit")}</Button>
               <Button type="button" size="sm" variant="destructive" onClick={() => setConfirm("delete")}>{t("transactions.deletePending")}</Button>
@@ -181,7 +192,9 @@ export default function TransactionDetailPage() {
                 <h2 className="font-semibold">{t("transactions.correctTitle")}</h2>
                 <p className="mt-2 text-sm text-[#5d716b]">{t("transactions.correctExplanation")}</p>
                 <input aria-label={t("transactions.correctedDescription")} value={description} onChange={(event) => setDescription(event.target.value)} className={`mt-4 ${controlClasses}`} />
-                <input aria-label={t("transactions.correctedAmount")} value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" className={`mt-3 ${controlClasses}`} />
+                <div className="mt-3">
+                  <MoneyField id="corrected-amount" label={t("transactions.correctedAmount")} value={amount} onChange={setAmount} currency={account?.currency_code ?? selected?.currency_code ?? "COP"} />
+                </div>
                 <Button type="submit" size="sm" className="mt-4">{t("transactions.reviewCorrection")}</Button>
               </form>
             </Panel>

@@ -3,9 +3,10 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthLoading, useRequireAuth } from "@/components/route-guards";
-import { useT } from "@/components/locale-provider";
+import { useI18n, useT } from "@/components/locale-provider";
 import { FinancialShell, useSelectedHousehold } from "@/components/financial/financial-shell";
 import { FormField } from "@/components/form-field";
+import { MoneyField } from "@/components/money-field";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -15,12 +16,14 @@ import { positiveAmountToImpact, todayInTimeZone } from "@/lib/financial-format"
 import { availableCategories } from "@/lib/financial-rules";
 import { apiErrorMessage } from "@/lib/form-errors";
 import { categoryLabel } from "@/lib/i18n/presentation";
+import { canonicalizeMoneyInput } from "@/lib/money-input";
 
 export default function NewTransactionPage() {
   const auth = useRequireAuth();
   const { selected } = useSelectedHousehold();
   const router = useRouter();
   const t = useT();
+  const { intlLocale } = useI18n();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [kind, setKind] = useState<"income" | "expense">("expense");
@@ -49,14 +52,19 @@ export default function NewTransactionPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!selected || !accountId || !categoryId || !amount || !description.trim()) {
+    const canonicalAmount = canonicalizeMoneyInput(amount, intlLocale);
+    if (!selected || !accountId || !categoryId || !description.trim()) {
       setError(t("transactions.requiredFields"));
+      return;
+    }
+    if (canonicalAmount === null || canonicalAmount.startsWith("-")) {
+      setError(t("money.invalidAmount"));
       return;
     }
     setSaving(true);
     setError("");
     try {
-      await createTransaction(selected.id, { account_id: Number(accountId), category_id: Number(categoryId), kind, account_impact: positiveAmountToImpact(kind, amount), status, occurred_on: effectiveOccurredOn, description: description.trim(), notes }, crypto.randomUUID());
+      await createTransaction(selected.id, { account_id: Number(accountId), category_id: Number(categoryId), kind, account_impact: positiveAmountToImpact(kind, canonicalAmount), status, occurred_on: effectiveOccurredOn, description: description.trim(), notes }, crypto.randomUUID());
       router.push("/app");
     } catch (requestError) {
       setError(apiErrorMessage(requestError, t));
@@ -87,7 +95,7 @@ export default function NewTransactionPage() {
             <option value="">{t("transactions.selectCategory")}</option>
             {availableTransactionCategories.map((category) => <option key={category.id} value={category.id}>{categoryLabel(category, t)}</option>)}
           </SelectField>
-          <FormField id="transaction-amount" label={t("transactions.amount")} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.0000" />
+          <MoneyField id="transaction-amount" label={t("transactions.amount")} value={amount} onChange={setAmount} currency={selected?.currency_code ?? "COP"} />
           <FormField id="transaction-description" label={t("transactions.description")} value={description} onChange={(event) => setDescription(event.target.value)} placeholder={t("transactions.descriptionPlaceholder")} />
           <FormField id="transaction-notes" label={t("transactions.notes")} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={t("transactions.notesPlaceholder")} />
           <FormField id="transaction-date" label={t("transactions.date")} type="date" value={effectiveOccurredOn} onChange={(event) => setOccurredOn(event.target.value)} />

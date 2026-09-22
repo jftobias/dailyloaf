@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { positiveAmountToImpact } from "@/lib/financial-format";
 import { availableCategories, compatibleTransferAccounts } from "@/lib/financial-rules";
 
-const account = (id: number, visibility: "shared" | "private", owner: number | null = null) => ({ id, name: String(id), account_type: "checking" as const, currency_code: "COP", opening_balance: "0.0000", opening_balance_date: "2026-01-01", visibility, private_owner_id: owner, archived_at: null, posted_balance: "0.0000", pending_impact: "0.0000", projected_balance: "0.0000" });
+const account = (id: number, visibility: "shared" | "private", owner: number | null = null) => ({ id, name: String(id), account_type: "checking" as const, currency_code: "COP", opening_balance: "0.0000", opening_balance_date: "2026-01-01", visibility, private_owner_id: owner, archived_at: null, credit_limit: null, posted_balance: "0.0000", pending_impact: "0.0000", projected_balance: "0.0000" });
 
 describe("financial UI rules", () => {
   it("maps positive user amounts to the signed API contract without numeric conversion", () => {

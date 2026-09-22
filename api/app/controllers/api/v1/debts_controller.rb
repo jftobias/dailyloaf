@@ -52,6 +52,7 @@ module Api
           profile: profile ? DebtProfilesController.profile_json(profile) : nil,
           paid_off_ratio: progress_ratio(debt_balance, profile)
         }
+        json.merge!(credit_fields(account, balances)) if account.account_type == "credit_card"
         if profile
           projection = projection_for(account, profile, balances)
           json[:estimated_payoff_date] = projection[:payoff_date]
@@ -59,6 +60,20 @@ module Api
           json[:amortizing] = projection[:amortizing]
         end
         json
+      end
+
+      # Available credit is borrowing capacity derived from the projected
+      # balance (posted + pending). It is never a financial total.
+      def credit_fields(account, balances)
+        return { credit_limit: nil, available_credit: nil, utilization_percentage: nil, over_limit_amount: nil } if account.credit_limit.nil?
+        limit = BigDecimal(account.credit_limit.to_s)
+        projected_debt = -balances.fetch(:projected_balance)
+        {
+          credit_limit: financial_decimal(limit),
+          available_credit: financial_decimal(limit - projected_debt),
+          utilization_percentage: financial_decimal((projected_debt / limit * 100).round(2, mode: :half_even)),
+          over_limit_amount: financial_decimal([ projected_debt - limit, BigDecimal(0) ].max)
+        }
       end
 
       def progress_ratio(debt_balance, profile)

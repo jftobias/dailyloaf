@@ -11,7 +11,7 @@ RSpec.describe "Debt and analytics API", type: :request do
   it "creates, reads, updates, and deletes a debt profile on a liability account" do
     register_user
     household_id = JSON.parse(response.body).dig("household", "id")
-    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "-500.0000")
+    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "500.0000")
 
     post "/api/v1/households/#{household_id}/accounts/#{card_id}/debt_profile",
       params: { creditor_name: "Bank", annual_interest_rate: "24.5", minimum_payment: "50.0000", planned_monthly_payment: "100.0000", payment_due_day: 15, original_principal: "500.0000" },
@@ -51,7 +51,7 @@ RSpec.describe "Debt and analytics API", type: :request do
   it "lists debts with balances and projection hints" do
     register_user
     household_id = JSON.parse(response.body).dig("household", "id")
-    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "-500.0000")
+    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "500.0000")
     create_account(household_id, name: "Checking", type: "checking", balance: "100.0000")
     post "/api/v1/households/#{household_id}/accounts/#{card_id}/debt_profile",
       params: { annual_interest_rate: "0", minimum_payment: "100.0000" },
@@ -70,7 +70,7 @@ RSpec.describe "Debt and analytics API", type: :request do
   it "returns a payoff projection with decimal strings" do
     register_user
     household_id = JSON.parse(response.body).dig("household", "id")
-    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "-250.0000")
+    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "250.0000")
     post "/api/v1/households/#{household_id}/accounts/#{card_id}/debt_profile",
       params: { annual_interest_rate: "0", minimum_payment: "100.0000" },
       as: :json, headers: { "X-CSRF-Token" => csrf_token }
@@ -87,7 +87,7 @@ RSpec.describe "Debt and analytics API", type: :request do
     register_user
     household_id = JSON.parse(response.body).dig("household", "id")
     checking_id = create_account(household_id, name: "Checking", type: "checking", balance: "1000.0000")
-    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "-500.0000")
+    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "500.0000")
 
     post "/api/v1/households/#{household_id}/transfers",
       params: { source_account_id: checking_id, destination_account_id: card_id, amount: "200.0000" },
@@ -116,7 +116,7 @@ RSpec.describe "Debt and analytics API", type: :request do
     register_user
     household_id = JSON.parse(response.body).dig("household", "id")
     checking_id = create_account(household_id, name: "Checking", type: "checking", balance: "100.0000")
-    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "-50.0000")
+    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "50.0000")
     post "/api/v1/households/#{household_id}/accounts/#{card_id}/debt_profile",
       params: { minimum_payment: "10.0000" }, as: :json, headers: { "X-CSRF-Token" => csrf_token }
     post "/api/v1/households/#{household_id}/accounts/#{card_id}/archive", as: :json, headers: { "X-CSRF-Token" => csrf_token }
@@ -146,7 +146,7 @@ RSpec.describe "Debt and analytics API", type: :request do
     register_user
     household_id = JSON.parse(response.body).dig("household", "id")
     checking_id = create_account(household_id, name: "Checking", type: "checking", balance: "1000.0000")
-    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "-500.0000")
+    card_id = create_account(household_id, name: "Card", type: "credit_card", balance: "500.0000")
     salary = Household.find(household_id).categories.find_by!(kind: :income, name: "Salary")
 
     post "/api/v1/households/#{household_id}/transactions",
