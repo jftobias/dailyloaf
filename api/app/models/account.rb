@@ -19,6 +19,9 @@ class Account < ApplicationRecord
   validates :currency_code, presence: true, format: { with: /\A[A-Z]{3}\z/ }
   validates :opening_balance, numericality: true
   validates :opening_balance_date, presence: true
+  validates :credit_limit, numericality: { greater_than: 0 }, allow_nil: true
+  validate :opening_balance_sign_matches_type
+  validate :credit_limit_requires_credit_card
   validate :currency_matches_household
   validate :private_owner_matches_visibility
   validate :private_owner_is_member
@@ -65,6 +68,20 @@ class Account < ApplicationRecord
     elsif visibility_shared? && private_owner_id.present?
       errors.add(:private_owner, "must be blank for shared accounts")
     end
+  end
+
+  def opening_balance_sign_matches_type
+    return if opening_balance.nil?
+    if liability? && opening_balance.positive?
+      errors.add(:opening_balance, "is stored as debt for liability accounts and cannot be positive")
+    elsif asset? && opening_balance.negative?
+      errors.add(:opening_balance, "cannot be negative for an asset account")
+    end
+  end
+
+  def credit_limit_requires_credit_card
+    return if credit_limit.nil?
+    errors.add(:credit_limit, "is only available for credit card accounts") unless account_type == "credit_card"
   end
 
   def opening_balance_immutable

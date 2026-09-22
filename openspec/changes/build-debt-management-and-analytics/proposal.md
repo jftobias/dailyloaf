@@ -26,6 +26,19 @@ does spending concentrate?" without leaving the app.
   responsive, accessible, localized charts (Recharts) and textual/table
   fallbacks. Navigation gains Debts/Deudas and Analysis/Análisis links.
 - Extend English and Spanish dictionaries for all new UI.
+- Normalize liability opening balances at a single backend boundary so members
+  always enter the positive amount currently owed while the ledger stores the
+  canonical signed value.
+- Add an optional exact-decimal credit limit for credit-card accounts with
+  Rails-computed available credit and utilization from the projected debt
+  balance — borrowing capacity only, never part of financial totals.
+- Add a reusable localized money input applied to every monetary form
+  (canonical decimal-string values, locale separators, currency shown).
+- Make card/debt information visibly editable and removable: edit card info,
+  record payment, archive card, and remove debt configuration with explained
+  consequences.
+- Remove internal implementation wording (e.g. "authoritative in Rails") from
+  all user-facing copy.
 
 ## Out of scope
 

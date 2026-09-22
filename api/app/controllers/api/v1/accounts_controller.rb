@@ -32,7 +32,7 @@ module Api
       private
 
       def account_params
-        params.permit(:name, :account_type, :currency_code, :opening_balance, :opening_balance_date, :visibility)
+        params.permit(:name, :account_type, :currency_code, :opening_balance, :opening_balance_date, :visibility, :credit_limit)
       end
 
       def account_json(account, balances = nil)
@@ -46,6 +46,7 @@ module Api
           opening_balance_date: account.opening_balance_date,
           visibility: account.visibility,
           private_owner_id: account.private_owner_id,
+          credit_limit: account.credit_limit.nil? ? nil : financial_decimal(account.credit_limit),
           archived_at: account.archived_at,
           posted_balance: financial_decimal(balances.fetch(:posted_balance)),
           pending_impact: financial_decimal(balances.fetch(:pending_impact)),

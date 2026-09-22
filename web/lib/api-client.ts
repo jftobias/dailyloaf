@@ -22,6 +22,7 @@ export type Account = {
   visibility: "shared" | "private";
   private_owner_id: number | null;
   archived_at: string | null;
+  credit_limit: string | null;
   posted_balance: string;
   pending_impact: string;
   projected_balance: string;
@@ -98,6 +99,10 @@ export type Debt = {
   projected_balance: string;
   debt_balance: string;
   projected_debt_balance: string;
+  credit_limit: string | null;
+  available_credit: string | null;
+  utilization_percentage: string | null;
+  over_limit_amount: string | null;
   profile: DebtProfile | null;
   paid_off_ratio: string | null;
   estimated_payoff_date?: string | null;
@@ -311,6 +316,7 @@ function householdPath(householdId: number, resource: string) {
 export const listAccounts = (householdId: number) => apiRequest<{ accounts: Account[] }>(householdPath(householdId, "accounts"));
 export const getAccount = (householdId: number, id: number) => apiRequest<{ account: Account }>(householdPath(householdId, `accounts/${id}`));
 export const createAccount = (householdId: number, input: Record<string, unknown>, idempotencyKey?: string) => apiRequest<{ account: Account }>(householdPath(householdId, "accounts"), { method: "POST", headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : undefined, body: JSON.stringify(input) });
+export const updateAccount = (householdId: number, id: number, input: Record<string, unknown>) => apiRequest<{ account: Account }>(householdPath(householdId, `accounts/${id}`), { method: "PATCH", body: JSON.stringify(input) });
 export const archiveAccount = (householdId: number, id: number) => apiRequest<void>(householdPath(householdId, `accounts/${id}/archive`), { method: "POST" });
 
 export const listCategories = (householdId: number) => apiRequest<{ categories: Category[] }>(householdPath(householdId, "categories"));

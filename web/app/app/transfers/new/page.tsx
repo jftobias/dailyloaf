@@ -3,9 +3,9 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthLoading, useRequireAuth } from "@/components/route-guards";
-import { useT } from "@/components/locale-provider";
+import { useI18n, useT } from "@/components/locale-provider";
 import { FinancialShell, useSelectedHousehold } from "@/components/financial/financial-shell";
-import { FormField } from "@/components/form-field";
+import { MoneyField } from "@/components/money-field";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -13,12 +13,14 @@ import { SelectField } from "@/components/ui/select-field";
 import { createTransfer, listAccounts, type Account } from "@/lib/api-client";
 import { compatibleTransferAccounts } from "@/lib/financial-rules";
 import { apiErrorMessage } from "@/lib/form-errors";
+import { canonicalizeMoneyInput } from "@/lib/money-input";
 
 export default function NewTransferPage() {
   const auth = useRequireAuth();
   const { selected } = useSelectedHousehold();
   const router = useRouter();
   const t = useT();
+  const { intlLocale } = useI18n();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [source, setSource] = useState("");
   const [destination, setDestination] = useState("");
@@ -37,14 +39,19 @@ export default function NewTransferPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!selected || !source || !destination || source === destination || !amount) {
+    const canonicalAmount = canonicalizeMoneyInput(amount, intlLocale);
+    if (!selected || !source || !destination || source === destination) {
       setError(t("transfers.chooseAccounts"));
+      return;
+    }
+    if (canonicalAmount === null) {
+      setError(t("money.invalidAmount"));
       return;
     }
     setSaving(true);
     setError("");
     try {
-      await createTransfer(selected.id, { source_account_id: Number(source), destination_account_id: Number(destination), amount, status: "posted" }, crypto.randomUUID());
+      await createTransfer(selected.id, { source_account_id: Number(source), destination_account_id: Number(destination), amount: canonicalAmount, status: "posted" }, crypto.randomUUID());
       router.push("/app");
     } catch (requestError) {
       setError(apiErrorMessage(requestError, t));
@@ -68,7 +75,7 @@ export default function NewTransferPage() {
             <option value="">{t("transfers.selectDestination")}</option>
             {compatible.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
           </SelectField>
-          <FormField id="transfer-amount" label={t("transfers.amount")} inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.0000" />
+          <MoneyField id="transfer-amount" label={t("transfers.amount")} value={amount} onChange={setAmount} currency={selected?.currency_code ?? "COP"} />
           <Button type="submit" size="lg" loading={saving} loadingLabel={t("transfers.submitting")}>
             {t("transfers.submit")}
           </Button>

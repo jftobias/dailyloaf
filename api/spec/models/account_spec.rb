@@ -38,4 +38,38 @@ RSpec.describe Account, type: :model do
     expect(account.pending_impact.to_s).to eq("-5.0")
     expect(account.projected_balance.to_s).to eq("75.0")
   end
+
+  it "requires canonical negative opening balances on liabilities" do
+    card = household.accounts.new(name: "Card", account_type: :credit_card, currency_code: "COP", opening_balance: "500.0000", opening_balance_date: Date.current)
+    expect(card).not_to be_valid
+    expect(card.errors[:opening_balance]).not_to be_empty
+
+    card.opening_balance = "-500.0000"
+    expect(card).to be_valid
+  end
+
+  it "requires non-negative opening balances on assets" do
+    account = household.accounts.new(name: "Checking", account_type: :checking, currency_code: "COP", opening_balance: "-500.0000", opening_balance_date: Date.current)
+    expect(account).not_to be_valid
+  end
+
+  it "allows a credit limit only on credit-card accounts" do
+    card = household.accounts.new(name: "Card", account_type: :credit_card, currency_code: "COP", credit_limit: "2000.0000", opening_balance_date: Date.current)
+    expect(card).to be_valid
+
+    loan = household.accounts.new(name: "Loan", account_type: :loan, currency_code: "COP", credit_limit: "2000.0000", opening_balance_date: Date.current)
+    expect(loan).not_to be_valid
+    expect(loan.errors[:credit_limit]).not_to be_empty
+
+    checking = household.accounts.new(name: "Checking", account_type: :checking, currency_code: "COP", credit_limit: "2000.0000", opening_balance_date: Date.current)
+    expect(checking).not_to be_valid
+  end
+
+  it "rejects zero and negative credit limits" do
+    card = household.accounts.new(name: "Card", account_type: :credit_card, currency_code: "COP", opening_balance_date: Date.current)
+    card.credit_limit = "0.0000"
+    expect(card).not_to be_valid
+    card.credit_limit = "-1.0000"
+    expect(card).not_to be_valid
+  end
 end

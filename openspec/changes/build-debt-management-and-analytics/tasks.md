@@ -27,7 +27,24 @@
 - [x] Add complete en/es dictionary entries; keep parity tests green.
 - [x] Frontend tests: localized debt/analysis UI, validation, payment workflow, projection states, chart data formatting, empty states, nav, decimal strings, CSRF/idempotency, 401.
 
+## Backend — credit limit, availability, and opening-balance normalization
+
+- [x] Add `accounts.credit_limit` (`numeric(19,4)`, check `> 0` when present); model restricts it to `credit_card` accounts.
+- [x] Normalize `opening_balance` in `AccountService.create!` (non-negative user-facing input → canonical signed value; reject negative input) and enforce persisted sign in `Account` validations.
+- [x] Serialize `credit_limit`, `available_credit`, `utilization_percentage`, `over_limit_amount` in the debt response for credit cards with a limit (BigDecimal, decimal strings, projected balance).
+- [x] Permit `credit_limit` (and keep `name`) on account update; keep `opening_balance` excluded.
+- [x] Backend specs: limit storage/serialization, credit-card-only rule, missing limit, availability/utilization incl. pending, over-limit, payment/reversal effects, totals exclusion, opening-balance normalization per type, profile removal preserving history.
+
+## Frontend — inputs, card UX, and copy
+
+- [x] Remove internal implementation copy (landing footer etc.) from dictionaries and components; regression test for both locales.
+- [x] Build `MoneyField`/`MoneyInput` + `lib/money-input.ts` (locale separators, grouping on blur, canonical decimal string, currency adornment, `inputMode="decimal"`); apply to all monetary forms.
+- [x] Account form: liability "amount currently owed" (positive), credit-card "total credit limit" field, currency shown, debt-vs-limit explanation.
+- [x] Debt detail: limit/available/utilization/over-limit display with accessible indicator + "estimated from recorded transactions" note; visible Edit card info / Record payment / Archive card / Remove debt configuration actions with explanatory dialogs.
+- [x] Frontend tests: en/es labels, no internal phrases, card-only limit field, money-input parse/format/paste, canonical payloads, positive owed amount, edit/archive/remove discoverability, availability + over-limit display, accessible utilization.
+
 ## Validation
 
 - [x] `openspec validate --all`, `docker compose config/build`, `db:prepare`, RSpec, RuboCop, Brakeman, Bundler Audit, pnpm test/lint/typecheck/build, `git diff --check`.
 - [x] Full browser acceptance workflow in English and Spanish (desktop/tablet/375 px, no overflow, no console errors).
+- [x] Fresh bilingual acceptance on a new user without console corrections: positive owed amount, limit/availability/utilization, pending impact, edit/remove/archive, analysis exclusion, responsive checks.

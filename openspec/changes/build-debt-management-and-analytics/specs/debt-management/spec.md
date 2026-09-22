@@ -119,6 +119,173 @@ accessible chart summaries.
   `$ 34.162` in es-CO)
 - **AND** the four-decimal string never appears on screen
 
+### Requirement: Normalize liability opening balances at the service boundary
+
+The account-creation API SHALL accept `opening_balance` as a non-negative
+user-facing amount — the amount currently held for asset accounts and the
+amount currently owed for liability accounts. `AccountService` SHALL convert
+it to the canonical signed internal value for the selected account type
+(negative for liabilities) before persistence, SHALL reject negative input
+with a validation error, and the model SHALL enforce that a liability's
+stored opening balance is never positive and an asset's is never negative.
+Clients SHALL submit only the positive entered amount and SHALL NOT negate
+client-side.
+
+#### Scenario: Create a credit card from a positive owed amount
+
+- **GIVEN** a member creates a `credit_card` account with opening amount
+  `"500000"`
+- **WHEN** the account is persisted
+- **THEN** the stored opening balance is `-500000`
+- **AND** the debt view presents `500000` owed, liabilities increase by
+  `500000`, and net worth decreases by `500000`
+
+#### Scenario: Preserve asset opening balances
+
+- **GIVEN** a member creates a `checking` account with opening amount
+  `"500000"`
+- **WHEN** the account is persisted
+- **THEN** the stored opening balance is `500000`
+- **AND** assets and net worth increase by `500000`
+
+#### Scenario: Reject a negative opening amount
+
+- **GIVEN** any account type
+- **WHEN** a client submits a negative `opening_balance`
+- **THEN** the API rejects the request with a validation error
+- **AND** no account is persisted
+
+### Requirement: Offer credit-card limits with projected available credit
+
+Credit-card accounts SHALL support an optional `credit_limit` stored as
+`numeric(19,4)` on the account, constrained to positive values and to
+`credit_card` account type only — attempts to set it on any other type SHALL
+be rejected with a validation error. When a limit exists, the debt response
+SHALL include `credit_limit`, `available_credit` computed as
+`credit_limit - projected_debt_balance` (projected balance includes pending
+impacts), `utilization_percentage` computed as
+`projected_debt_balance / credit_limit * 100` with half-even rounding, and
+`over_limit_amount`. All values SHALL be decimal strings computed with
+BigDecimal; negative available credit SHALL be preserved rather than clamped.
+Available credit SHALL be presented as borrowing capacity only and SHALL
+NEVER contribute to net worth, total assets, income, cash flow, or any
+financial total.
+
+#### Scenario: Compute availability from the projected balance
+
+- **GIVEN** a credit card with limit `"2000000"` and posted debt `"500000"`
+- **WHEN** the debt is requested
+- **THEN** available credit is `"1500000"` and utilization is `"25.00"`
+- **AND** a pending `"100000"` card expense makes the projected debt
+  `"600000"`, available credit `"1400000"`, and utilization `"30.00"`
+
+#### Scenario: Over-limit state
+
+- **GIVEN** a card whose projected debt exceeds its limit
+- **WHEN** the debt is requested
+- **THEN** available credit is negative and `over_limit_amount` is the
+  exceeded amount
+
+#### Scenario: Payments restore availability
+
+- **GIVEN** a card with a limit and a posted transfer payment
+- **WHEN** the payment posts and is later reversed through the aggregate
+- **THEN** available credit rises on payment and returns to its prior value
+  on reversal — atomically with both legs
+
+#### Scenario: Reject a limit on a non-card liability
+
+- **GIVEN** a `loan` or `other_liability` account
+- **WHEN** a client sets `credit_limit`
+- **THEN** the API rejects the request with a validation error
+
+#### Scenario: Missing limit
+
+- **GIVEN** a credit card without a configured limit
+- **WHEN** the debt is requested
+- **THEN** availability fields are absent or null and the card remains valid
+
+#### Scenario: Availability excluded from financial totals
+
+- **GIVEN** a card with a configured limit and available credit
+- **WHEN** overview or analytics totals are computed
+- **THEN** net worth, assets, income, and cash flow are identical to the same
+  household without a configured limit
+
+### Requirement: Make card and debt information editable and removable
+
+The debt detail page SHALL expose clearly labeled actions: edit card
+information (account name, credit limit, and debt-profile metadata), record
+payment, and archive card. Editing SHALL preserve the immutable
+opening-balance rule after financial activity. Removing a debt profile SHALL
+be a clearly explained destructive action that deletes only debt metadata and
+projections — the account, credit limit, and transaction history SHALL
+remain. Archival SHALL be the user-facing removal mechanism for cards with
+history: archived cards SHALL be excluded from new transaction/payment forms
+while preserving transactions, transfers, analysis, and limit metadata.
+
+#### Scenario: Edit card information
+
+- **GIVEN** a credit card with a limit and debt profile
+- **WHEN** the member opens the edit form
+- **THEN** the account name, credit limit, rate, payments, due day, creditor,
+  and notes are editable with clear labels
+- **AND** saving updates account and profile fields without touching the
+  opening balance
+
+#### Scenario: Remove debt configuration
+
+- **GIVEN** a card with a debt profile and posted transactions
+- **WHEN** the member confirms removing the debt configuration
+- **THEN** the profile is deleted, the account and its history remain
+  readable, and the configured credit limit is preserved
+
+#### Scenario: Archive a card
+
+- **GIVEN** a credit card with posted activity
+- **WHEN** the member confirms archiving
+- **THEN** the card is marked archived, disappears from payment and
+  transaction source options, and keeps its history, limit, and analysis
+  data
+
+### Requirement: Use localized money inputs
+
+Every user-facing monetary input SHALL use the shared localized money
+component: it SHALL display the household currency, accept keyboard entry,
+paste, deletion, and replacement, support the active locale's decimal
+separator (`es` comma, `en` period) while treating the opposite separator as
+grouping, keep the canonical value as a decimal string without Float
+conversion, use `inputMode="decimal"`, associate currency/hint/error text
+accessibly, and format grouping on blur without cursor jumps — never showing
+a raw stored format such as `0.0000`.
+
+#### Scenario: Enter a COP amount in Spanish
+
+- **GIVEN** a member using `es` on a COP household
+- **WHEN** the member types `500000` or `1.500.000` in a money field
+- **THEN** the canonical value is `"500000"` or `"1500000"`
+- **AND** the field shows `COP` context and groups digits on blur
+
+#### Scenario: Enter a decimal amount in English
+
+- **GIVEN** a member using `en`
+- **WHEN** the member types `1,234.56` in a money field
+- **THEN** the canonical value is `"1234.56"`
+- **AND** the API payload preserves the exact decimal string
+
+### Requirement: Keep product copy free of implementation details
+
+User-facing copy SHALL NOT mention implementation details such as Rails,
+service objects, authoritative-database wording, or decimal storage. Internal
+architecture language SHALL be replaced with user-focused explanations.
+
+#### Scenario: No internal phrases render
+
+- **GIVEN** any page in either locale
+- **WHEN** the UI renders
+- **THEN** phrases such as "authoritative in Rails" / "autoritativos en
+  Rails" do not appear in the document or the dictionaries
+
 ### Requirement: Estimate payoff with a documented deterministic projection
 
 The system SHALL compute a payoff estimate in Rails from the current posted
